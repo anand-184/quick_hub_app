@@ -43,6 +43,8 @@ class FirebaseService {
 
   // ==================== USERS ====================
 
+
+
   Future<void> saveUserProfile(UserModel user) async {
     await _firestore.collection('users').doc(user.uid).set(user.toJson());
   }
@@ -220,6 +222,8 @@ class FirebaseService {
   Future<void> submitComplaint(ComplaintModel complaint) async {
     await _firestore.collection('complaints').doc(complaint.complaintId).set(complaint.toJson());
   }
+
+
 
   Stream<List<ComplaintModel>> streamAllComplaints() {
     return _firestore
