@@ -1,3 +1,4 @@
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -51,7 +52,8 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
+                await FirebaseAnalytics.instance.logEvent(name: "Provider_Logout");
                 Navigator.pop(context);
                 context.read<AuthViewModel>().logout();
                 ScaffoldMessenger.of(this.context).showSnackBar(
@@ -140,7 +142,8 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
+                await FirebaseAnalytics.instance.logEvent(name: "Provide_ActiveStatus_updated");
                 Navigator.pop(context);
                 _saveProfile();
               },
@@ -682,7 +685,8 @@ class _ProviderProfileTabState extends State<ProviderProfileTab> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
+                await FirebaseAnalytics.instance.logEvent(name: "Provide_detail_Saved");
                 Navigator.pop(context);
                 _updateProfile();
               },

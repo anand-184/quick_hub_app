@@ -35,6 +35,7 @@ dependencies:
   pdf: ^3.12.0
   path_provider: ^2.1.5
   open_file: ^3.5.11
+  firebase_analytics: ^12.3.0
 
 dev_dependencies:
   flutter_test:

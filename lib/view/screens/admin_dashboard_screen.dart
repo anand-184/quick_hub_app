@@ -1,3 +1,4 @@
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -20,6 +21,7 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  final FirebaseAnalytics analytics =FirebaseAnalytics.instance;
   int _selectedIndex = 0;
 
   final List<Widget> _tabs = [
@@ -39,7 +41,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => context.read<AuthViewModel>().logout(),
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              context.read<AuthViewModel>().logout();
+            }
           ),
         ],
       ),
@@ -595,6 +600,7 @@ class ActiveProvidersList extends StatelessWidget {
                   height: 50,
                   child: ElevatedButton(
                     onPressed: () async {
+                      await FirebaseAnalytics.instance.logEvent(name: 'update_provider_details');
                       final updatedUser = UserModel(
                         uid: provider.uid,
                         name: nameController.text.trim(),
@@ -995,7 +1001,8 @@ class ComplaintsAdminTab extends StatelessWidget {
                         Text(DateFormat('MMM dd, hh:mm a').format(complaint.timestamp), style: const TextStyle(color: Colors.grey, fontSize: 12)),
                         if (isOpen)
                           TextButton(
-                            onPressed: () {
+                            onPressed: () async {
+                              await FirebaseAnalytics.instance.logEvent(name: 'resolve_complaint');
                               FirebaseFirestore.instance.collection('complaints').doc(complaint.complaintId).update({'status': 'resolved'});
                             },
                             child: const Text('Mark Resolved'),
