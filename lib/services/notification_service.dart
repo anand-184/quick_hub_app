@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/foundation.dart';
 import '../models/notification_model.dart';
 import 'firebase_service.dart';
@@ -13,12 +14,29 @@ class NotificationService {
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
+  final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
   
   // Base URL for the notification service on Render
-  final String _renderUrl = "https://quick-hub-notifications.onrender.com/send-notification";
+  final String _renderUrl = "https://quick-hub-project-1.onrender.com/send-notification";
 
   Future<void> initialize() async {
-    // 1. Request Permission
+    // 1. Initialize Local Notifications
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    
+    const InitializationSettings initializationSettings = InitializationSettings(
+      android: initializationSettingsAndroid,
+      iOS: DarwinInitializationSettings(),
+    );
+
+    await _localNotifications.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: (details) {
+        // Handle notification tap
+      },
+    );
+
+    // 2. Request Permission
     NotificationSettings settings = await _fcm.requestPermission(
       alert: true,
       badge: true,
@@ -28,46 +46,41 @@ class NotificationService {
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
       if (kDebugMode) print('User granted notification permission');
       
-      // 2. Get FCM Token
-      String? token = await _fcm.getToken();
-      if (token != null) {
-        if (kDebugMode) print("FCM Token: $token");
-        // We will update the token in Firestore when the user logs in
-      }
-
-      // 3. Handle Foreground Messages
+      // 3. Handle Foreground Messages (This makes them pop up)
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        if (kDebugMode) print('Got a message whilst in the foreground!');
-        if (kDebugMode) print('Message data: ${message.data}');
-
         if (message.notification != null) {
-          if (kDebugMode) {
-            print('Message also contained a notification: ${message.notification!.title}');
-          }
-          // You could show a local notification here if needed
+          _showLocalNotification(
+            title: message.notification!.title ?? 'Quick Hub',
+            body: message.notification!.body ?? '',
+          );
         }
       });
       
       // 4. Handle background/terminated message click
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
          if (kDebugMode) print('A new onMessageOpenedApp event was published!');
-         // Navigate to specific screen based on message.data if needed
       });
-    } else {
-      if (kDebugMode) print('User declined or has not accepted notification permission');
     }
   }
 
-  // Call this after login to sync the token
-  Future<void> updateToken(String userId) async {
-    try {
-      String? token = await _fcm.getToken();
-      if (token != null) {
-        await FirebaseService().updatePushToken(userId, token);
-      }
-    } catch (e) {
-      if (kDebugMode) print("Error updating push token: $e");
-    }
+  Future<void> _showLocalNotification({required String title, required String body}) async {
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+      'quick_hub_channel',
+      'Quick Hub Notifications',
+      importance: Importance.max,
+      priority: Priority.high,
+      showWhen: true,
+    );
+    const NotificationDetails platformChannelSpecifics =
+        NotificationDetails(android: androidPlatformChannelSpecifics);
+    
+    await _localNotifications.show(
+      DateTime.now().millisecond,
+      title,
+      body,
+      platformChannelSpecifics,
+    );
   }
 
   Future<void> sendNotification({
@@ -78,7 +91,7 @@ class NotificationService {
   }) async {
     try {
       // 1. Save to Firestore for in-app history
-      final notificationId = FirebaseFirestore.instance.collection('notifications').doc().id;
+      final notificationId = _firestore.collection('notifications').doc().id;
       final notification = NotificationModel(
         notificationId: notificationId,
         recipientId: recipientId,
@@ -91,21 +104,13 @@ class NotificationService {
 
       // 2. Fetch recipient's push token
       final userDoc = await _firestore.collection('users').doc(recipientId).get();
-      if (!userDoc.exists) {
-        print("User $recipientId does not exist in Firestore.");
-        return;
-      }
+      if (!userDoc.exists) return;
       
-      final userData = userDoc.data();
-      final pushToken = userData?['pushToken'];
-      
-      if (pushToken == null || pushToken.toString().isEmpty) {
-        print("No push token found for user $recipientId. Only in-app notification saved.");
-        return;
-      }
+      final pushToken = userDoc.data()?['pushToken'];
+      if (pushToken == null || pushToken.toString().isEmpty) return;
 
-      // 3. Call Render service for push notification
-      final response = await http.post(
+      // 3. Call Render service
+      await http.post(
         Uri.parse(_renderUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
@@ -115,14 +120,20 @@ class NotificationService {
           'data': data ?? {},
         }),
       ).timeout(const Duration(seconds: 10));
+    } catch (e) {
+      if (kDebugMode) print("Error in notification service: $e");
+    }
+  }
 
-      if (response.statusCode == 200) {
-        print("Push notification sent successfully via Render to $recipientId");
-      } else {
-        print("Render service returned error (${response.statusCode}): ${response.body}");
+  // Helper method to update token in Firestore
+  Future<void> updateToken(String userId) async {
+    try {
+      String? token = await _fcm.getToken();
+      if (token != null) {
+        await FirebaseService().updatePushToken(userId, token);
       }
     } catch (e) {
-      print("Error in notification service: $e");
+      if (kDebugMode) print("Error updating push token: $e");
     }
   }
 }
