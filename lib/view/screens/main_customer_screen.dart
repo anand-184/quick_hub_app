@@ -581,19 +581,22 @@ class CustomerHomeTab extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.star, color: Colors.amber, size: 14),
-                    Text(
-                      ' ${provider.rating.toStringAsFixed(1)}', 
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold, 
-                        fontSize: 12,
-                        color: isDark ? AppTheme.baseWhite : Colors.black,
-                      )
-                    ),
-                  ],
+                Flexible(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.star, color: Colors.amber, size: 14),
+                      Text(
+                        ' ${provider.rating.toStringAsFixed(1)}', 
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold, 
+                          fontSize: 12,
+                          color: isDark ? AppTheme.baseWhite : Colors.black,
+                        )
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 4),
                 Text(
                   '₹${provider.hourlyRate ?? 0}/hr', 
                   style: const TextStyle(

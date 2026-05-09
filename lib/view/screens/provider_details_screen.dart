@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../../models/user_model.dart';
 import '../../models/notification_model.dart';
 import '../../models/review_model.dart';
+import '../../services/firebase_service.dart';
 import '../../view_models/auth_view_model.dart';
 import '../../view_models/request_view_model.dart';
 import '../../services/notification_service.dart';

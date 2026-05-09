@@ -12,7 +12,6 @@ import 'notification_service.dart';
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
   
   // ==================== AUTHENTICATION ====================
   
@@ -190,12 +189,12 @@ class FirebaseService {
     
     await batch.commit();
 
-    // Notify provider about the payment
+    // Notify provider about the new review
     await NotificationService().sendNotification(
-      recipientId: providerId,
-      title: 'Payment Received',
-      body: 'You have received ₹${providerEarnings.toStringAsFixed(2)} for service.',
-      data: {'type': 'payment_received', 'requestId': requestId},
+      recipientId: review.providerId,
+      title: 'New Review Received',
+      body: 'You received a ${review.rating} star review for your service.',
+      data: {'type': 'new_review', 'requestId': review.requestId},
     );
   }
 
