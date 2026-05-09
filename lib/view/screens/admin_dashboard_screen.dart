@@ -7,6 +7,7 @@ import '../../models/service_request_model.dart';
 import '../../models/user_model.dart';
 import '../../models/complaint_model.dart';
 import '../../models/transaction_model.dart';
+import '../../services/notification_service.dart';
 import '../widgets/animated_bottom_nav.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -240,7 +241,7 @@ class RequestAdminCard extends StatelessWidget {
             Text('$label: ', style: const TextStyle(color: Colors.grey)),
             Expanded(child: Text(user.name, style: const TextStyle(fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
             const SizedBox(width: 8),
-            Text(user.email, style: const TextStyle(fontSize: 11, color: Colors.blue)),
+            Flexible(child: Text(user.email, style: const TextStyle(fontSize: 11, color: Colors.blue), overflow: TextOverflow.ellipsis)),
           ],
         );
       },
@@ -391,6 +392,15 @@ class PendingProvidersList extends StatelessWidget {
                 await FirebaseFirestore.instance.collection('users').doc(newUid).set(providerData);
                 await FirebaseFirestore.instance.collection('users').doc(provider.uid).delete();
                 
+                // Notify provider of approval (might need to wait for them to log in first to get token, 
+                // but we can send it anyway if they registered with one)
+                await NotificationService().sendNotification(
+                  recipientId: newUid,
+                  title: 'Account Approved!',
+                  body: 'Welcome to Quick Hub! Your provider account has been approved. Please login with your temporary password.',
+                  data: {'type': 'approval'},
+                );
+
                 if (context.mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -685,23 +695,28 @@ class ActiveProvidersList extends StatelessWidget {
                 ),
                 title: Text(provider.name),
                 subtitle: Text(provider.serviceType ?? 'No Service'),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      tooltip: provider.isPremium ? "Remove Premium" : "Make Premium",
-                      icon: Icon(Icons.workspace_premium, color: provider.isPremium ? Colors.amber : Colors.grey),
-                      onPressed: () {
-                         FirebaseFirestore.instance.collection('users').doc(provider.uid).update({'isPremium': !provider.isPremium});
-                      }
-                    ),
-                    Switch(
-                      value: provider.isActive,
-                      onChanged: (val) {
-                        FirebaseFirestore.instance.collection('users').doc(provider.uid).update({'isActive': val});
-                      },
-                    ),
-                  ],
+                trailing: SizedBox(
+                  width: 100,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      IconButton(
+                        tooltip: provider.isPremium ? "Remove Premium" : "Make Premium",
+                        icon: Icon(Icons.workspace_premium, color: provider.isPremium ? Colors.amber : Colors.grey),
+                        onPressed: () {
+                           FirebaseFirestore.instance.collection('users').doc(provider.uid).update({'isPremium': !provider.isPremium});
+                        }
+                      ),
+                      Expanded(
+                        child: Switch(
+                          value: provider.isActive,
+                          onChanged: (val) {
+                            FirebaseFirestore.instance.collection('users').doc(provider.uid).update({'isActive': val});
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
                 )
               ),
             );
@@ -820,7 +835,8 @@ class PaymentsAdminTab extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(title, style: TextStyle(fontSize: 16, color: color, fontWeight: FontWeight.bold)),
+              Expanded(child: Text(title, style: TextStyle(fontSize: 16, color: color, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+              const SizedBox(width: 8),
               Icon(Icons.monetization_on, color: color.withOpacity(0.5)),
             ],
           ),

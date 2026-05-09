@@ -197,50 +197,55 @@ class CustomerHomeTab extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 26,
-                        backgroundColor: isDark ? AppTheme.darkSurface : AppTheme.primaryLightBlue,
-                        child: Icon(Icons.person, color: isDark ? AppTheme.baseWhite : theme.primaryColor),
-                      ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Hello $userName',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? AppTheme.baseWhite : AppTheme.primaryDarkBlue,
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: () => mapVM.fetchLocation(force: true),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.location_on, size: 12, color: Colors.redAccent),
-                                const SizedBox(width: 4),
-                                SizedBox(
-                                  width: MediaQuery.of(context).size.width * 0.5,
-                                  child: Text(
-                                    mapVM.locationError ?? (mapVM.currentAddress ?? "Fetching location..."),
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: mapVM.locationError != null 
-                                          ? Colors.red 
-                                          : (isDark ? Colors.grey.shade400 : Colors.grey),
-                                      decoration: TextDecoration.underline,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 26,
+                          backgroundColor: isDark ? AppTheme.darkSurface : AppTheme.primaryLightBlue,
+                          child: Icon(Icons.person, color: isDark ? AppTheme.baseWhite : theme.primaryColor),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Hello $userName',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? AppTheme.baseWhite : AppTheme.primaryDarkBlue,
                                 ),
-                              ],
-                            ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              GestureDetector(
+                                onTap: () => mapVM.fetchLocation(force: true),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.location_on, size: 12, color: Colors.redAccent),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        mapVM.locationError ?? (mapVM.currentAddress ?? "Fetching location..."),
+                                        style: theme.textTheme.bodySmall?.copyWith(
+                                          color: mapVM.locationError != null 
+                                              ? Colors.red 
+                                              : (isDark ? Colors.grey.shade400 : Colors.grey),
+                                          decoration: TextDecoration.underline,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 12),
                   GestureDetector(
                     onTap: () {
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()));

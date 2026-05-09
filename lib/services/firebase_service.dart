@@ -7,6 +7,7 @@ import '../models/review_model.dart';
 import '../models/notification_model.dart';
 import '../models/service_category_model.dart';
 import '../models/complaint_model.dart';
+import 'notification_service.dart';
 
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -151,6 +152,14 @@ class FirebaseService {
     });
 
     await batch.commit();
+
+    // Notify provider about the payment
+    await NotificationService().sendNotification(
+      recipientId: providerId,
+      title: 'Payment Received',
+      body: 'You have received ₹${providerEarnings.toStringAsFixed(2)} for service.',
+      data: {'type': 'payment_received', 'requestId': requestId},
+    );
   }
 
   // ==================== REVIEWS ====================
@@ -180,6 +189,14 @@ class FirebaseService {
     });
     
     await batch.commit();
+
+    // Notify provider about the payment
+    await NotificationService().sendNotification(
+      recipientId: providerId,
+      title: 'Payment Received',
+      body: 'You have received ₹${providerEarnings.toStringAsFixed(2)} for service.',
+      data: {'type': 'payment_received', 'requestId': requestId},
+    );
   }
 
   Stream<List<ReviewModel>> streamProviderReviews(String providerId) {

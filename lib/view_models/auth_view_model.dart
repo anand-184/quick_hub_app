@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/firebase_service.dart';
 import '../services/auth_error_service.dart';
+import '../services/notification_service.dart';
 
 class AuthViewModel extends ChangeNotifier {
   final FirebaseService _firebaseService = FirebaseService();
@@ -44,6 +45,8 @@ class AuthViewModel extends ChangeNotifier {
       if (user != null) {
         final userProfile = await _firebaseService.getUserProfile(user.uid);
         _currentUser = userProfile;
+        // Update push token whenever auth state changes to a logged in user
+        NotificationService().updateToken(user.uid);
       } else {
         _currentUser = null;
       }
