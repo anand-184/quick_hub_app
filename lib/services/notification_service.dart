@@ -1,93 +1,139 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/material.dart';
-import 'firebase_service.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/foundation.dart';
 import '../models/notification_model.dart';
-import 'package:uuid/uuid.dart';
-
-/// Top-level background message handler for FCM
-@pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  print("Handling a background message: ${message.messageId}");
-}
+import 'firebase_service.dart';
 
 class NotificationService {
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
-  final FirebaseService _firebaseService = FirebaseService();
+  static final NotificationService _instance = NotificationService._internal();
+  factory NotificationService() => _instance;
+  NotificationService._internal();
+
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseMessaging _fcm = FirebaseMessaging.instance;
+  final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+  
+  // Base URL for the notification service on Render
+  final String _renderUrl = "https://quick-hub-project-1.onrender.com/send-notification";
 
   Future<void> initialize() async {
-    // 1. Request permissions for iOS and Web (auto-granted on Android).
-    NotificationSettings settings = await _messaging.requestPermission(
+    // 1. Initialize Local Notifications
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    
+    const InitializationSettings initializationSettings = InitializationSettings(
+      android: initializationSettingsAndroid,
+      iOS: DarwinInitializationSettings(),
+    );
+
+    await _localNotifications.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: (details) {
+        // Handle notification tap
+      },
+    );
+
+    // 2. Request Permission
+    NotificationSettings settings = await _fcm.requestPermission(
       alert: true,
       badge: true,
       sound: true,
-      provisional: false,
     );
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      print('User granted permission');
-
-      // 2. Fetch the FCM push token and save it to the current user
-      final currentUserId = _firebaseService.currentUserId;
-      if (currentUserId != null) {
-        String? token = await _messaging.getToken();
-        if (token != null) {
-          await _firebaseService.updatePushToken(currentUserId, token);
-        }
-
-        // Listen for token refreshes
-        _messaging.onTokenRefresh.listen((newToken) {
-          _firebaseService.updatePushToken(currentUserId, newToken);
-        });
-      }
-
-      // 3. Register background handler
-      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-      // 4. Handle foreground messages
-      FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
-        print('Got a message whilst in the foreground!');
-        print('Message data: ${message.data}');
-
+      if (kDebugMode) print('User granted notification permission');
+      
+      // 3. Handle Foreground Messages (This makes them pop up)
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         if (message.notification != null) {
-          print('Message also contained a notification: ${message.notification}');
-          
-          if (currentUserId != null) {
-            // Save to internal firestore for history
-            final notifModel = NotificationModel(
-              notificationId: const Uuid().v4(),
-              recipientId: currentUserId,
-              title: message.notification!.title ?? 'New Notification',
-              body: message.notification!.body ?? '',
-              timestamp: DateTime.now(),
-              dataPayload: message.data,
-             );
-            await _firebaseService.saveNotification(notifModel);
-          }
+          _showLocalNotification(
+            title: message.notification!.title ?? 'Quick Hub',
+            body: message.notification!.body ?? '',
+          );
         }
       });
-
-      // 5. Handle tapping the notification (when app is in background or terminated)
+      
+      // 4. Handle background/terminated message click
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-        print('A new onMessageOpenedApp event was published!');
-        _handleNotificationInteraction(message);
+         if (kDebugMode) print('A new onMessageOpenedApp event was published!');
       });
-
-      // Handle terminal state tap
-      RemoteMessage? initialMessage = await FirebaseMessaging.instance.getInitialMessage();
-      if (initialMessage != null) {
-        _handleNotificationInteraction(initialMessage);
-      }
-    } else {
-      print('User declined or has not accepted permission');
     }
   }
 
-  void _handleNotificationInteraction(RemoteMessage message) {
-    if (message.data.containsKey('requestId')) {
-      final requestId = message.data['requestId'];
-      // Depending on your navigation setup, you will redirect the user to the Request Details Screen here.
-      // Example: NavigationContext.navigatorKey.currentState.pushNamed('/request', arguments: requestId);
-      print("User tapped notification relating to Request ID: $requestId");
+  Future<void> _showLocalNotification({required String title, required String body}) async {
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+      'quick_hub_channel',
+      'Quick Hub Notifications',
+      importance: Importance.max,
+      priority: Priority.high,
+      showWhen: true,
+    );
+    const NotificationDetails platformChannelSpecifics =
+        NotificationDetails(android: androidPlatformChannelSpecifics);
+    
+    await _localNotifications.show(
+      DateTime.now().millisecond,
+      title,
+      body,
+      platformChannelSpecifics,
+    );
+  }
+
+  Future<void> sendNotification({
+    required String recipientId,
+    required String title,
+    required String body,
+    Map<String, dynamic>? data,
+  }) async {
+    try {
+      // 1. Save to Firestore for in-app history
+      final notificationId = _firestore.collection('notifications').doc().id;
+      final notification = NotificationModel(
+        notificationId: notificationId,
+        recipientId: recipientId,
+        title: title,
+        body: body,
+        timestamp: DateTime.now(),
+        isRead: false,
+      );
+      await FirebaseService().saveNotification(notification);
+
+      // 2. Fetch recipient's push token
+      final userDoc = await _firestore.collection('users').doc(recipientId).get();
+      if (!userDoc.exists) return;
+      
+      final pushToken = userDoc.data()?['pushToken'];
+      if (pushToken == null || pushToken.toString().isEmpty) return;
+
+      // 3. Call Render service
+      await http.post(
+        Uri.parse(_renderUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'token': pushToken,
+          'title': title,
+          'body': body,
+          'data': data ?? {},
+        }),
+      ).timeout(const Duration(seconds: 10));
+    } catch (e) {
+      if (kDebugMode) print("Error in notification service: $e");
+    }
+  }
+
+  // Helper method to update token in Firestore
+  Future<void> updateToken(String userId) async {
+    try {
+      String? token = await _fcm.getToken();
+      if (token != null) {
+        await FirebaseService().updatePushToken(userId, token);
+      }
+    } catch (e) {
+      if (kDebugMode) print("Error updating push token: $e");
     }
   }
 }

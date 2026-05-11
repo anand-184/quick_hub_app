@@ -6,9 +6,10 @@ import 'package:uuid/uuid.dart';
 import '../../models/user_model.dart';
 import '../../models/notification_model.dart';
 import '../../models/review_model.dart';
+import '../../services/firebase_service.dart';
 import '../../view_models/auth_view_model.dart';
 import '../../view_models/request_view_model.dart';
-import '../../services/firebase_service.dart';
+import '../../services/notification_service.dart';
 import 'package:intl/intl.dart';
 
 class ProviderDetailsScreen extends StatefulWidget {
@@ -148,14 +149,15 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
       );
 
       // Send notification
-      final notif = NotificationModel(
-        notificationId: const Uuid().v4(),
+      await NotificationService().sendNotification(
         recipientId: widget.provider.uid,
         title: 'New Service Request',
         body: '${consumer.name} requested ${widget.provider.serviceType} for ${DateFormat('MMM dd, hh:mm a').format(scheduledDateTime)}',
-        timestamp: DateTime.now(),
+        data: {
+          'type': 'new_request',
+          'requestId': const Uuid().v4(), // This should ideally match the request.requestId if available
+        },
       );
-      FirebaseService().saveNotification(notif);
 
       if (mounted) {
         Navigator.pop(context); // Close dialog

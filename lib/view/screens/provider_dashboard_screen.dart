@@ -10,7 +10,7 @@ import '../widgets/animated_bottom_nav.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import '../../services/firebase_service.dart';
-import '../../models/notification_model.dart';
+import '../../services/notification_service.dart';
 import 'chat_screen.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:shimmer/shimmer.dart';
@@ -401,14 +401,12 @@ class ProviderJobsTab extends StatelessWidget {
                 ElevatedButton(
                   onPressed: () async {
                     await FirebaseFirestore.instance.collection('requests').doc(job.requestId).update({'status': 'accepted'});
-                    final notif = NotificationModel(
-                      notificationId: const Uuid().v4(),
+                    await NotificationService().sendNotification(
                       recipientId: job.consumerId,
                       title: 'Request Accepted',
                       body: 'Your request for ${job.serviceType} was accepted!',
-                      timestamp: DateTime.now(),
+                      data: {'type': 'request_accepted', 'requestId': job.requestId},
                     );
-                    await FirebaseService().saveNotification(notif);
                     if (context.mounted) Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Job accepted!'), backgroundColor: Colors.green));
                   },
@@ -418,14 +416,12 @@ class ProviderJobsTab extends StatelessWidget {
                 ElevatedButton(
                   onPressed: () async {
                     await FirebaseFirestore.instance.collection('requests').doc(job.requestId).update({'status': 'declined'});
-                    final notif = NotificationModel(
-                      notificationId: const Uuid().v4(),
+                    await NotificationService().sendNotification(
                       recipientId: job.consumerId,
                       title: 'Request Declined',
                       body: 'Your request for ${job.serviceType} was declined.',
-                      timestamp: DateTime.now(),
+                      data: {'type': 'request_declined', 'requestId': job.requestId},
                     );
-                    await FirebaseService().saveNotification(notif);
                     if (context.mounted) Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Job declined.'), backgroundColor: Colors.red));
                   },
@@ -497,6 +493,15 @@ class ProviderJobsTab extends StatelessWidget {
                     'agreedPrice': total,
                     'paymentStatus': 'pending', 
                   });
+                  
+                  // Notify consumer to pay
+                  await NotificationService().sendNotification(
+                    recipientId: job.consumerId,
+                    title: 'Job Completed',
+                    body: 'Your service is complete. Please pay ₹${total.toStringAsFixed(2)} to the provider.',
+                    data: {'type': 'payment_due', 'requestId': job.requestId, 'amount': total},
+                  );
+
                   if (context.mounted) {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Job completed & Invoice generated!'), backgroundColor: Colors.green));

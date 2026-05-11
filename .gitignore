@@ -44,4 +44,10 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Firebase Service Account
+service-account.json
 lib/backend/service-account.json
+
+# Node modules
+node_modules/
+**/node_modules/

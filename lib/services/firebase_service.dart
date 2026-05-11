@@ -7,11 +7,11 @@ import '../models/review_model.dart';
 import '../models/notification_model.dart';
 import '../models/service_category_model.dart';
 import '../models/complaint_model.dart';
+import 'notification_service.dart';
 
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
   
   // ==================== AUTHENTICATION ====================
   
@@ -42,6 +42,8 @@ class FirebaseService {
   String? get currentUserId => _auth.currentUser?.uid;
 
   // ==================== USERS ====================
+
+
 
   Future<void> saveUserProfile(UserModel user) async {
     await _firestore.collection('users').doc(user.uid).set(user.toJson());
@@ -149,6 +151,14 @@ class FirebaseService {
     });
 
     await batch.commit();
+
+    // Notify provider about the payment
+    await NotificationService().sendNotification(
+      recipientId: providerId,
+      title: 'Payment Received',
+      body: 'You have received ₹${providerEarnings.toStringAsFixed(2)} for service.',
+      data: {'type': 'payment_received', 'requestId': requestId},
+    );
   }
 
   // ==================== REVIEWS ====================
@@ -178,6 +188,14 @@ class FirebaseService {
     });
     
     await batch.commit();
+
+    // Notify provider about the new review
+    await NotificationService().sendNotification(
+      recipientId: review.providerId,
+      title: 'New Review Received',
+      body: 'You received a ${review.rating} star review for your service.',
+      data: {'type': 'new_review', 'requestId': review.requestId},
+    );
   }
 
   Stream<List<ReviewModel>> streamProviderReviews(String providerId) {
@@ -220,6 +238,8 @@ class FirebaseService {
   Future<void> submitComplaint(ComplaintModel complaint) async {
     await _firestore.collection('complaints').doc(complaint.complaintId).set(complaint.toJson());
   }
+
+
 
   Stream<List<ComplaintModel>> streamAllComplaints() {
     return _firestore

@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -198,53 +197,55 @@ class CustomerHomeTab extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 26,
-                        backgroundColor: isDark ? AppTheme.darkSurface : AppTheme.primaryLightBlue,
-                        child: Icon(Icons.person, color: isDark ? AppTheme.baseWhite : theme.primaryColor),
-                      ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Hello $userName',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? AppTheme.baseWhite : AppTheme.primaryDarkBlue,
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: () async {
-                              await FirebaseAnalytics.instance.logEvent(name: "location_Fatched");
-                              mapVM.fetchLocation(force: true);
-                            child: Row(
-                              children: [
-                                const Icon(Icons.location_on, size: 12, color: Colors.redAccent),
-                                const SizedBox(width: 4),
-                                SizedBox(
-                                  width: MediaQuery.of(context).size.width * 0.5,
-                                  child: Text(
-                                    mapVM.locationError ?? (mapVM.currentAddress ?? "Fetching location..."),
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: mapVM.locationError != null
-                                          ? Colors.red
-                                          : (isDark ? Colors.grey.shade400 : Colors.grey),
-                                      decoration: TextDecoration.underline,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 26,
+                          backgroundColor: isDark ? AppTheme.darkSurface : AppTheme.primaryLightBlue,
+                          child: Icon(Icons.person, color: isDark ? AppTheme.baseWhite : theme.primaryColor),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Hello $userName',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? AppTheme.baseWhite : AppTheme.primaryDarkBlue,
                                 ),
-                              ],
-                            );
-                            }
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              GestureDetector(
+                                onTap: () => mapVM.fetchLocation(force: true),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.location_on, size: 12, color: Colors.redAccent),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        mapVM.locationError ?? (mapVM.currentAddress ?? "Fetching location..."),
+                                        style: theme.textTheme.bodySmall?.copyWith(
+                                          color: mapVM.locationError != null 
+                                              ? Colors.red 
+                                              : (isDark ? Colors.grey.shade400 : Colors.grey),
+                                          decoration: TextDecoration.underline,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 12),
                   GestureDetector(
                     onTap: () {
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()));
@@ -290,10 +291,7 @@ class CustomerHomeTab extends StatelessWidget {
                         ],
                       ),
                       child: TextField(
-
-                        onChanged: (value) async {
-                          context.read<MapViewModel>().setSearchQuery(value);
-                        },
+                        onChanged: (value) => context.read<MapViewModel>().setSearchQuery(value),
                         style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black),
                         decoration: InputDecoration(
                           hintText: 'Search Service',
@@ -317,8 +315,8 @@ class CustomerHomeTab extends StatelessWidget {
                         borderRadius: BorderRadius.circular(15),
                         boxShadow: [
                           BoxShadow(
-                              color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
-                              blurRadius: 10
+                            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03), 
+                            blurRadius: 10
                           )
                         ],
                       ),
@@ -583,19 +581,22 @@ class CustomerHomeTab extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.star, color: Colors.amber, size: 14),
-                    Text(
-                      ' ${provider.rating.toStringAsFixed(1)}', 
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold, 
-                        fontSize: 12,
-                        color: isDark ? AppTheme.baseWhite : Colors.black,
-                      )
-                    ),
-                  ],
+                Flexible(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.star, color: Colors.amber, size: 14),
+                      Text(
+                        ' ${provider.rating.toStringAsFixed(1)}', 
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold, 
+                          fontSize: 12,
+                          color: isDark ? AppTheme.baseWhite : Colors.black,
+                        )
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 4),
                 Text(
                   '₹${provider.hourlyRate ?? 0}/hr', 
                   style: const TextStyle(
@@ -1191,8 +1192,7 @@ class _CustomerProfileTabState extends State<CustomerProfileTab> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
             ElevatedButton(
-              onPressed: () async {
-                await FirebaseAnalytics.instance.logEvent(name: "Customer_LogOut");
+              onPressed: () {
                 Navigator.pop(context);
                 context.read<AuthViewModel>().logout();
                 ScaffoldMessenger.of(this.context).showSnackBar(
@@ -1224,10 +1224,7 @@ class _CustomerProfileTabState extends State<CustomerProfileTab> {
             style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black),
           ),
           actions: [
-            TextButton(onPressed: () async {
-              await FirebaseAnalytics.instance.logEvent(name: "Customer_details_updated");
-              Navigator.pop(context);
-            }, child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
@@ -1351,7 +1348,6 @@ class _CustomerProfileTabState extends State<CustomerProfileTab> {
                   )
                 ),
                 IconButton(
-
                   icon: const Icon(Icons.logout, color: Colors.red),
                   onPressed: _showLogoutConfirmation,
                 ),

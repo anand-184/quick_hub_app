@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../models/chat_message_model.dart';
+import '../services/notification_service.dart';
 
 class ChatViewModel extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -46,6 +47,18 @@ class ChatViewModel extends ChangeNotifier {
           .collection('messages')
           .doc(message.messageId)
           .set(message.toJson());
+
+      // Send push notification to receiver
+      await NotificationService().sendNotification(
+        recipientId: receiverId,
+        title: 'New Message',
+        body: text,
+        data: {
+          'type': 'chat',
+          'requestId': requestId,
+          'senderId': senderId,
+        },
+      );
     } catch (e) {
       print('Error sending message: $e');
     }
