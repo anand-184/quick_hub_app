@@ -3,8 +3,11 @@ import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import '../models/notification_model.dart';
+import '../view/screens/notifications_screen.dart';
+import '../main.dart';
 import 'firebase_service.dart';
 
 class NotificationService {
@@ -30,9 +33,11 @@ class NotificationService {
     );
 
     await _localNotifications.initialize(
-      initializationSettings,
+      settings: initializationSettings,
       onDidReceiveNotificationResponse: (details) {
-        // Handle notification tap
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(builder: (context) => const NotificationsScreen()),
+        );
       },
     );
 
@@ -56,10 +61,23 @@ class NotificationService {
         }
       });
       
-      // 4. Handle background/terminated message click
+      // 4. Handle background message click
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
          if (kDebugMode) print('A new onMessageOpenedApp event was published!');
+         navigatorKey.currentState?.push(
+           MaterialPageRoute(builder: (context) => const NotificationsScreen()),
+         );
       });
+
+      // 5. Handle terminated state message click
+      RemoteMessage? initialMessage = await _fcm.getInitialMessage();
+      if (initialMessage != null) {
+        Future.delayed(const Duration(seconds: 1), () {
+          navigatorKey.currentState?.push(
+            MaterialPageRoute(builder: (context) => const NotificationsScreen()),
+          );
+        });
+      }
     }
   }
 
@@ -76,10 +94,10 @@ class NotificationService {
         NotificationDetails(android: androidPlatformChannelSpecifics);
     
     await _localNotifications.show(
-      DateTime.now().millisecond,
-      title,
-      body,
-      platformChannelSpecifics,
+      id: DateTime.now().millisecond,
+      title: title,
+      body: body,
+      notificationDetails: platformChannelSpecifics,
     );
   }
 
