@@ -226,6 +226,14 @@ class FirebaseService {
     await _firestore.collection('notifications').doc(notificationId).update({'isRead': true});
   }
 
+  Future<void> deleteNotification(String notificationId) async {
+    await _firestore.collection('notifications').doc(notificationId).delete();
+  }
+
+  Future<void> deleteRequest(String requestId) async {
+    await _firestore.collection('requests').doc(requestId).delete();
+  }
+
   // ==================== CATEGORIES ====================
 
   Future<List<ServiceCategoryModel>> getCategories() async {

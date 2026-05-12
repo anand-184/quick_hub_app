@@ -50,10 +50,22 @@ class NotificationsScreen extends StatelessWidget {
                   style: TextStyle(fontWeight: notif.isRead ? FontWeight.normal : FontWeight.bold),
                 ),
                 subtitle: Text(notif.body),
-                trailing: Text(
-                  DateFormat('hh:mm a\nMMM dd').format(notif.timestamp),
-                  textAlign: TextAlign.end,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      DateFormat('hh:mm a\nMMM dd').format(notif.timestamp),
+                      textAlign: TextAlign.end,
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                      onPressed: () {
+                        FirebaseService().deleteNotification(notif.notificationId);
+                      },
+                    ),
+                  ],
                 ),
                 onTap: () {
                   if (!notif.isRead) {

@@ -682,13 +682,95 @@ class _CustomerBookingsTabState extends State<CustomerBookingsTab> {
 
     _processingRequestId = requestId;
 
-    _razorpayService.openCheckout(
-      amount: amount,
-      name: 'Quick Hub Services',
-      description: 'Payment for completed service',
-      contact: '9999999999',
-      email: user.email,
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: isDark ? AppTheme.darkSurface : AppTheme.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.payments_outlined, size: 64, color: Theme.of(context).primaryColor),
+              const SizedBox(height: 16),
+              Text(
+                'Go with Cash Payment',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? AppTheme.baseWhite : Colors.black,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Please pay ₹${amount.toStringAsFixed(2)} directly to the service provider.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  await _confirmCashPayment(requestId, amount);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('I Have Paid Cash'),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
+        );
+      },
     );
+  }
+
+  Future<void> _confirmCashPayment(String requestId, double amount) async {
+    final authVM = context.read<AuthViewModel>();
+    final consumerId = authVM.currentUser!.uid;
+
+    try {
+      final doc = await FirebaseFirestore.instance.collection('requests').doc(requestId).get();
+      if (!doc.exists) return;
+      
+      final data = doc.data()!;
+      final providerId = data['providerId'];
+
+      await FirebaseService().processPayment(
+        requestId: requestId,
+        consumerId: consumerId,
+        providerId: providerId,
+        totalAmount: amount,
+        paymentMethod: 'Cash',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Payment marked as completed via Cash!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error recording payment: $e')),
+        );
+      }
+    } finally {
+      _processingRequestId = null;
+    }
   }
 
   void _showComplaintDialog(BuildContext context, String requestId, String accusedId) {
@@ -852,11 +934,13 @@ class _CustomerBookingsTabState extends State<CustomerBookingsTab> {
       );
     }
 
-    return Column(
-      children: [
-        SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
+    return SafeArea(
+      bottom: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
             child: Text(
               'My Bookings', 
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -865,9 +949,8 @@ class _CustomerBookingsTabState extends State<CustomerBookingsTab> {
               )
             ),
           ),
-        ),
-        Expanded(
-          child: StreamBuilder<List<ServiceRequestModel>>(
+          Expanded(
+            child: StreamBuilder<List<ServiceRequestModel>>(
             stream: FirebaseService().streamConsumerRequests(consumerId),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
@@ -909,7 +992,7 @@ class _CustomerBookingsTabState extends State<CustomerBookingsTab> {
           ),
         ),
       ],
-    );
+    ));
   }
 }
 
@@ -983,9 +1066,41 @@ class BookingListItem extends StatelessWidget {
             ),
           ],
         ),
-        trailing: Icon(
-          Icons.chevron_right, 
-          color: isDark ? AppTheme.baseWhite.withOpacity(0.5) : Colors.grey
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (request.status == RequestStatus.completed || 
+                request.status == RequestStatus.declined ||
+                request.status == RequestStatus.pending||
+                request.status == RequestStatus.cancelled)
+              IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 22),
+                onPressed: () async {
+                  final confirmed = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      backgroundColor: isDark ? AppTheme.darkSurface : AppTheme.white,
+                      title: Text('Delete Booking', style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black)),
+                      content: Text('Are you sure you want to delete this booking record?', style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black)),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true), 
+                          child: const Text('Delete', style: TextStyle(color: Colors.red))
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirmed == true) {
+                    await FirebaseService().deleteRequest(request.requestId);
+                  }
+                },
+              ),
+            Icon(
+              Icons.chevron_right, 
+              color: isDark ? AppTheme.baseWhite.withOpacity(0.5) : Colors.grey
+            ),
+          ],
         ),
       ),
     );
