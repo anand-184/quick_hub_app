@@ -1,3 +1,4 @@
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../view_models/auth_view_model.dart';
@@ -13,6 +14,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final FirebaseAnalytics analytics = FirebaseAnalytics.instance;
+
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
@@ -336,10 +339,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         if (authVM.isLoading) {
                           return const CircularProgressIndicator();
                         }
-                        return ElevatedButton(
-                          onPressed: () => _handleLogin(),
-                          child: const Text("Log in"),
-                        );
+                        return ElevatedButton(onPressed: () async {
+                          await analytics.setUserId();
+                          await analytics.setUserProperty(name: 'email', value: _emailController.text);
+                          await analytics.logLogin();
+                           _handleLogin();
+
+                        },
+                          child: const Text("Log in"),);
                       },
                     ),
                     const SizedBox(height: 30),
