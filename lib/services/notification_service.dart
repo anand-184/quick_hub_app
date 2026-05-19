@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -17,20 +18,25 @@ class NotificationService {
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
-  final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
-  
+  final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
+  final FirebaseService _firebaseService = FirebaseService();
+  String? _lastPushToken;
+
   // Base URL for the notification service on Render
-  final String _renderUrl = "https://quick-hub-project-1.onrender.com/send-notification";
+  final String _renderUrl =
+      "https://quick-hub-project-1.onrender.com/send-notification";
 
   Future<void> initialize() async {
     // 1. Initialize Local Notifications
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
-    
-    const InitializationSettings initializationSettings = InitializationSettings(
-      android: initializationSettingsAndroid,
-      iOS: DarwinInitializationSettings(),
-    );
+
+    const InitializationSettings initializationSettings =
+        InitializationSettings(
+          android: initializationSettingsAndroid,
+          iOS: DarwinInitializationSettings(),
+        );
 
     await _localNotifications.initialize(
       settings: initializationSettings,
@@ -50,23 +56,36 @@ class NotificationService {
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
       if (kDebugMode) print('User granted notification permission');
-      
+
       // 3. Handle Foreground Messages (This makes them pop up)
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+        final recipientId = message.data['recipientId'];
+
+        // Only show notification if it's intended for the currently logged-in user
+        // If recipientId is not present, we show it by default (backward compatibility)
         if (message.notification != null) {
-          _showLocalNotification(
-            title: message.notification!.title ?? 'Quick Hub',
-            body: message.notification!.body ?? '',
-          );
+          if (recipientId == null || recipientId == currentUserId) {
+            _showLocalNotification(
+              title: message.notification!.title ?? 'Quick Hub',
+              body: message.notification!.body ?? '',
+            );
+          } else {
+            if (kDebugMode) {
+              print(
+                'Notification ignored: recipient mismatch ($recipientId != $currentUserId)',
+              );
+            }
+          }
         }
       });
-      
+
       // 4. Handle background message click
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-         if (kDebugMode) print('A new onMessageOpenedApp event was published!');
-         navigatorKey.currentState?.push(
-           MaterialPageRoute(builder: (context) => const NotificationsScreen()),
-         );
+        if (kDebugMode) print('A new onMessageOpenedApp event was published!');
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(builder: (context) => const NotificationsScreen()),
+        );
       });
 
       // 5. Handle terminated state message click
@@ -74,25 +93,31 @@ class NotificationService {
       if (initialMessage != null) {
         Future.delayed(const Duration(seconds: 1), () {
           navigatorKey.currentState?.push(
-            MaterialPageRoute(builder: (context) => const NotificationsScreen()),
+            MaterialPageRoute(
+              builder: (context) => const NotificationsScreen(),
+            ),
           );
         });
       }
     }
   }
 
-  Future<void> _showLocalNotification({required String title, required String body}) async {
+  Future<void> _showLocalNotification({
+    required String title,
+    required String body,
+  }) async {
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      'quick_hub_channel',
-      'Quick Hub Notifications',
-      importance: Importance.max,
-      priority: Priority.high,
-      showWhen: true,
+          'quick_hub_channel',
+          'Quick Hub Notifications',
+          importance: Importance.max,
+          priority: Priority.high,
+          showWhen: true,
+        );
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
     );
-    const NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
-    
+
     await _localNotifications.show(
       id: DateTime.now().millisecond,
       title: title,
@@ -118,26 +143,35 @@ class NotificationService {
         timestamp: DateTime.now(),
         isRead: false,
       );
-      await FirebaseService().saveNotification(notification);
+      await _firebaseService.saveNotification(notification);
 
       // 2. Fetch recipient's push token
-      final userDoc = await _firestore.collection('users').doc(recipientId).get();
+      final userDoc = await _firestore
+          .collection('users')
+          .doc(recipientId)
+          .get();
       if (!userDoc.exists) return;
-      
+
       final pushToken = userDoc.data()?['pushToken'];
       if (pushToken == null || pushToken.toString().isEmpty) return;
 
-      // 3. Call Render service
-      await http.post(
-        Uri.parse(_renderUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'token': pushToken,
-          'title': title,
-          'body': body,
-          'data': data ?? {},
-        }),
-      ).timeout(const Duration(seconds: 10));
+      // 3. Prepare data payload (include recipientId for verification)
+      final fullData = Map<String, dynamic>.from(data ?? {});
+      fullData['recipientId'] = recipientId;
+
+      // 4. Call Render service
+      await http
+          .post(
+            Uri.parse(_renderUrl),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'token': pushToken,
+              'title': title,
+              'body': body,
+              'data': fullData,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
     } catch (e) {
       if (kDebugMode) print("Error in notification service: $e");
     }
@@ -146,10 +180,10 @@ class NotificationService {
   // Helper method to update token in Firestore
   Future<void> updateToken(String userId) async {
     try {
-      String? token = await _fcm.getToken();
-      if (token != null) {
-        await FirebaseService().updatePushToken(userId, token);
-      }
+      final token = await _fcm.getToken();
+      if (token == null || token.isEmpty || token == _lastPushToken) return;
+      _lastPushToken = token;
+      await _firebaseService.updatePushToken(userId, token);
     } catch (e) {
       if (kDebugMode) print("Error updating push token: $e");
     }

@@ -193,37 +193,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (mounted) {
         showDialog(
           context: context,
-          builder: (context) => AlertDialog(
-            icon: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.red.withOpacity(0.1),
-              ),
-              child: const Icon(
-                Icons.error_outline,
-                color: Colors.red,
-                size: 32,
-              ),
-            ),
-            title: const Text("Email Already Registered"),
-            content: const Text(
-              "This email is already registered. Please use a different email or try logging in.",
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Try Different Email"),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  widget.onLoginTap();
-                },
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-                child: const Text("Go to Login"),
-              ),
-            ],
+          builder: (context) => AuthErrorDialog(
+            title: 'Email Already Registered',
+            message:
+                'This email is already registered. Please use a different email or try logging in.',
+            icon: Icons.email,
+            buttonText: 'Go to Login',
+            onConfirm: () {
+              Navigator.pop(context);
+              widget.onLoginTap();
+            },
           ),
         );
       }
@@ -256,37 +235,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
       } else {
         showDialog(
           context: context,
-          builder: (context) => AlertDialog(
-            icon: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.red.withOpacity(0.1),
-              ),
-              child: const Icon(
-                Icons.error_outline,
-                color: Colors.red,
-                size: 32,
-              ),
-            ),
-            title: const Text("Failed to Send OTP"),
-            content: const Text(
-              "We couldn't send the verification code. Please check your internet connection and try again.",
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Cancel"),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _sendOtp();
-                },
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                child: const Text("Retry"),
-              ),
-            ],
+          builder: (context) => AuthErrorDialog(
+            title: 'Failed to Send OTP',
+            message:
+                'We couldn\'t send the verification code. Please check your internet connection and try again.',
+            icon: Icons.error_outline,
+            buttonText: 'Retry',
+            onConfirm: () {
+              Navigator.pop(context);
+              _sendOtp();
+            },
           ),
         );
       }
@@ -315,37 +273,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } else {
       showDialog(
         context: context,
-        builder: (context) => AlertDialog(
-          icon: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.orange.withOpacity(0.1),
-            ),
-            child: const Icon(
-              Icons.error_outline,
-              color: Colors.orange,
-              size: 32,
-            ),
-          ),
-          title: const Text("Invalid OTP"),
-          content: const Text(
-            "The verification code you entered is incorrect. Please check and try again.",
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Close"),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _otpController.clear();
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-              child: const Text("Try Again"),
-            ),
-          ],
+        builder: (context) => AuthErrorDialog(
+          title: 'Invalid OTP',
+          message:
+              'The verification code you entered is incorrect. Please check and try again.',
+          icon: Icons.error_outline,
+          buttonText: 'Try Again',
+          onConfirm: () {
+            Navigator.pop(context);
+            _otpController.clear();
+          },
         ),
       );
     }
@@ -397,121 +334,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         );
       } else {
-        // Show comprehensive error dialog
         showDialog(
           context: context,
-          builder: (context) => AlertDialog(
-            icon: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.red.withOpacity(0.1),
-              ),
-              child: const Icon(
-                Icons.error_outline,
-                color: Colors.red,
-                size: 32,
-              ),
-            ),
-            title: Text(authVM.getErrorTitle(authVM.errorCode ?? 'unknown')),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    authVM.errorMessage ??
-                        "Registration failed. Please try again.",
-                  ),
-                  if (authVM.errorCode == 'email-already-in-use') ...[
-                    const SizedBox(height: 12),
-                    GestureDetector(
-                      onTap: widget.onLoginTap,
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.login, color: Colors.blue, size: 16),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                "Go to Login",
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.blue,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ] else if (authVM.errorCode == 'weak-password') ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.info, color: Colors.orange, size: 16),
-                              SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  "Password Requirements:",
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            "• At least 8 characters",
-                            style: TextStyle(fontSize: 11),
-                          ),
-                          Text(
-                            "• Uppercase letter (A-Z)",
-                            style: TextStyle(fontSize: 11),
-                          ),
-                          Text(
-                            "• Lowercase letter (a-z)",
-                            style: TextStyle(fontSize: 11),
-                          ),
-                          Text(
-                            "• Number (0-9)",
-                            style: TextStyle(fontSize: 11),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Close"),
-              ),
-              if (authVM.isRecoverableError(authVM.errorCode ?? ''))
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Try Again"),
-                ),
-            ],
+          builder: (context) => AuthErrorDialog(
+            title: authVM.getErrorTitle(authVM.errorCode ?? 'unknown'),
+            message:
+                authVM.errorMessage ?? 'Registration failed. Please try again.',
+            icon: Icons.error_outline,
+            buttonText: authVM.isRecoverableError(authVM.errorCode ?? '')
+                ? 'Try Again'
+                : 'Close',
+            onConfirm: () {
+              Navigator.pop(context);
+              if (authVM.errorCode == 'email-already-in-use') {
+                widget.onLoginTap();
+              }
+            },
           ),
         );
       }
@@ -620,10 +458,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         _selectedRole == UserRole.consumer
                             ? "Join the Quick Hub Community"
                             : "Submit your details to start earning",
-                        style: TextStyle(
-                          color:Colors.white,
-                          fontSize: 14,
-                        ),
+                        style: TextStyle(color: Colors.white, fontSize: 14),
                       ),
                     ],
                   ),
@@ -834,8 +669,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const SizedBox(height: 30),
                     Consumer<AuthViewModel>(
                       builder: (context, authVM, child) {
-                        if (authVM.isLoading)
+                        if (authVM.isLoading) {
                           return const CircularProgressIndicator();
+                        }
                         return ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             minimumSize: const Size(double.infinity, 50),
@@ -937,7 +773,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               fontWeight: FontWeight.w600,
               color: isSelected
                   ? (isDark ? Colors.white70 : Colors.white)
-                  : (isDark ? Colors.white70 :AppTheme.primaryDarkBlue),
+                  : (isDark ? Colors.white70 : AppTheme.primaryDarkBlue),
             ),
           ),
         ),

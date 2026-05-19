@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/firebase_service.dart';
@@ -44,7 +45,7 @@ class AuthViewModel extends ChangeNotifier {
       debugPrint("AuthViewModel: Auth state changed. User: ${user?.email}");
       if (user != null) {
         final userProfile = await _firebaseService.getUserProfile(user.uid);
-        _currentUser = userProfile;
+        _currentUser = userProfile ?? _fallbackUserFromAuth(user);
         // Update push token whenever auth state changes to a logged in user
         NotificationService().updateToken(user.uid);
       } else {
@@ -55,11 +56,13 @@ class AuthViewModel extends ChangeNotifier {
   }
 
   void _setLoading(bool value) {
+    if (_isLoading == value) return;
     _isLoading = value;
     notifyListeners();
   }
 
   void _setError(String? message, {String? errorCode}) {
+    if (_errorMessage == message && _errorCode == errorCode) return;
     _errorMessage = message;
     _errorCode = errorCode;
     notifyListeners();
@@ -67,10 +70,15 @@ class AuthViewModel extends ChangeNotifier {
 
   Future<void> _checkUserSession() async {
     _setLoading(true);
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      final userProfile = await _firebaseService.getUserProfile(user.uid);
-      _currentUser = userProfile;
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final userProfile = await _firebaseService.getUserProfile(user.uid);
+        _currentUser = userProfile ?? _fallbackUserFromAuth(user);
+      }
+    } catch (e) {
+      debugPrint('AuthViewModel: session check failed: $e');
+      _currentUser = null;
     }
     _setLoading(false);
   }
@@ -109,6 +117,13 @@ class AuthViewModel extends ChangeNotifier {
       _setError(_mapFirebaseAuthError(e), errorCode: e.code);
       _setLoading(false);
       return false;
+    } on FirebaseException catch (e) {
+      _setError(
+        'Unable to save profile data. Please check your network or permissions.',
+        errorCode: e.code,
+      );
+      _setLoading(false);
+      return false;
     } catch (e) {
       _setError(
         "An unexpected error occurred. Please try again.",
@@ -131,12 +146,7 @@ class AuthViewModel extends ChangeNotifier {
         final userProfile = await _firebaseService.getUserProfile(
           credential.user!.uid,
         );
-        if (userProfile == null) {
-          _setError("User profile not found. Please contact support.");
-          _setLoading(false);
-          return false;
-        }
-        _currentUser = userProfile;
+        _currentUser = userProfile ?? _fallbackUserFromAuth(credential.user!);
         _setLoading(false);
         return true;
       }
@@ -170,6 +180,24 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
+  UserModel _fallbackUserFromAuth(User user) {
+    final displayName = user.displayName?.trim();
+    final name = (displayName != null && displayName.isNotEmpty)
+        ? displayName
+        : user.email?.split('@').first ?? 'Guest';
+
+    return UserModel(
+      uid: user.uid,
+      name: name,
+      email: user.email ?? '',
+      role: UserRole.consumer,
+      createdAt: user.metadata.creationTime ?? DateTime.now(),
+      isActive: true,
+      rating: 0.0,
+      reviewCount: 0,
+    );
+  }
+
   Future<bool> sendPasswordResetEmail(String email) async {
     _setLoading(true);
     _setError(null);
@@ -192,6 +220,13 @@ class AuthViewModel extends ChangeNotifier {
       _setError(_mapFirebaseAuthError(e), errorCode: e.code);
       _setLoading(false);
       return false;
+    } on FirebaseException catch (e) {
+      _setError(
+        'Unable to verify your email or send the reset link. Please try again later.',
+        errorCode: e.code,
+      );
+      _setLoading(false);
+      return false;
     } catch (e) {
       _setError(
         "An unexpected error occurred. Please try again.",
@@ -203,6 +238,9 @@ class AuthViewModel extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    if (_currentUser != null) {
+      await _firebaseService.updatePushToken(_currentUser!.uid, null);
+    }
     await _firebaseService.logout();
     _currentUser = null;
     notifyListeners();

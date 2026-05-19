@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
@@ -6,6 +8,8 @@ import '../services/notification_service.dart';
 
 class ChatViewModel extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _messagesSubscription;
   List<ChatMessageModel> _messages = [];
   bool _isLoading = false;
 
@@ -13,16 +17,25 @@ class ChatViewModel extends ChangeNotifier {
   bool get isLoading => _isLoading;
 
   void listenToMessages(String requestId) {
-    _firestore
+    _messagesSubscription = _firestore
         .collection('requests')
         .doc(requestId)
         .collection('messages')
         .orderBy('timestamp', descending: true)
         .snapshots()
-        .listen((snapshot) {
-      _messages = snapshot.docs.map((doc) => ChatMessageModel.fromJson(doc.data())).toList();
-      notifyListeners();
-    });
+        .listen(
+          (snapshot) {
+            _messages = snapshot.docs
+                .map((doc) => ChatMessageModel.fromJson(doc.data()))
+                .toList();
+            notifyListeners();
+          },
+          onError: (error) {
+            debugPrint('ChatViewModel: message stream error: $error');
+            _messages = [];
+            notifyListeners();
+          },
+        );
   }
 
   Future<void> sendMessage({
@@ -53,14 +66,16 @@ class ChatViewModel extends ChangeNotifier {
         recipientId: receiverId,
         title: 'New Message',
         body: text,
-        data: {
-          'type': 'chat',
-          'requestId': requestId,
-          'senderId': senderId,
-        },
+        data: {'type': 'chat', 'requestId': requestId, 'senderId': senderId},
       );
     } catch (e) {
-      print('Error sending message: $e');
+      debugPrint('Error sending message: $e');
     }
+  }
+
+  @override
+  void dispose() {
+    _messagesSubscription?.cancel();
+    super.dispose();
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
@@ -6,6 +8,7 @@ import '../services/firebase_service.dart';
 
 class RequestViewModel extends ChangeNotifier {
   final FirebaseService _firebaseService = FirebaseService();
+  StreamSubscription<List<ServiceRequestModel>>? _requestsSubscription;
   List<ServiceRequestModel> _incomingRequests = [];
   bool _isLoading = false;
 
@@ -13,10 +16,21 @@ class RequestViewModel extends ChangeNotifier {
   bool get isLoading => _isLoading;
 
   void listenToIncomingRequests(String providerId) {
-    _firebaseService.streamProviderRequests(providerId).listen((requests) {
-      _incomingRequests = requests;
-      notifyListeners();
-    });
+    _requestsSubscription = _firebaseService
+        .streamProviderRequests(providerId)
+        .listen(
+          (requests) {
+            _incomingRequests = requests;
+            notifyListeners();
+          },
+          onError: (error) {
+            debugPrint(
+              'RequestViewModel: provider request stream error: $error',
+            );
+            _incomingRequests = [];
+            notifyListeners();
+          },
+        );
   }
 
   Future<void> sendRequest({
@@ -52,7 +66,16 @@ class RequestViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> updateRequestStatus(String requestId, RequestStatus status) async {
+  Future<void> updateRequestStatus(
+    String requestId,
+    RequestStatus status,
+  ) async {
     await _firebaseService.updateRequestStatus(requestId, status);
+  }
+
+  @override
+  void dispose() {
+    _requestsSubscription?.cancel();
+    super.dispose();
   }
 }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:quick_hub_project/view/screens/register_screen.dart';
 import '../../view_models/auth_view_model.dart';
 import '../../core/theme.dart';
 import '../widgets/auth_error_scaffold.dart';
@@ -43,136 +42,23 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _showLoginErrorDialog(AuthViewModel authVM) {
-    final theme = Theme.of(context);
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        icon: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.red.withOpacity(0.1),
-          ),
-          child: const Icon(Icons.error_outline, color: Colors.red, size: 32),
-        ),
-        title: Text(authVM.getErrorTitle(authVM.errorCode ?? 'unknown')),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(authVM.errorMessage ?? "Login failed. Please try again."),
-              const SizedBox(height: 12),
-              if (authVM.isNetworkError(authVM.errorCode ?? ''))
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.wifi_off, color: Colors.orange, size: 16),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          "Check your internet connection",
-                          style: TextStyle(fontSize: 12),
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              else if (authVM.isRateLimitError(authVM.errorCode ?? ''))
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.schedule, color: Colors.orange, size: 16),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          "Please wait a few minutes before trying again",
-                          style: TextStyle(fontSize: 12),
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              else if (authVM.errorCode == 'user-not-found' ||
-                  authVM.errorCode == 'invalid-credential')
-                GestureDetector(
-                  onTap: widget.onRegisterTap,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(
-                          Icons.app_registration,
-                          color: Colors.blue,
-                          size: 16,
-                        ),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            "Create a new account",
-                            style: TextStyle(fontSize: 12, color: Colors.blue),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              else if (authVM.errorCode == 'wrong-password')
-                GestureDetector(
-                  onTap: () => _showForgotPasswordDialog(),
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.lock_reset, color: Colors.blue, size: 16),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            "Reset your password",
-                            style: TextStyle(fontSize: 12, color: Colors.blue),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          if (authVM.isRecoverableError(authVM.errorCode ?? ''))
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              onPressed: () {
-                Navigator.pop(context);
-                _emailController.clear();
-                _passwordController.clear();
-              },
-              child: const Text("Try Again"),
-            ),
-        ],
+      builder: (context) => AuthErrorDialog(
+        title: authVM.getErrorTitle(authVM.errorCode ?? 'unknown'),
+        message: authVM.errorMessage ?? "Login failed. Please try again.",
+        icon: Icons.error_outline,
+        onConfirm: () {
+          if (authVM.errorCode == 'user-not-found' ||
+              authVM.errorCode == 'invalid-credential') {
+            widget.onRegisterTap();
+          } else if (authVM.errorCode == 'wrong-password') {
+            _showForgotPasswordDialog();
+          }
+        },
+        buttonText: authVM.isRecoverableError(authVM.errorCode ?? '')
+            ? 'Retry'
+            : 'Close',
       ),
     );
   }

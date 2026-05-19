@@ -68,7 +68,11 @@ Widget _buildShimmerListItem() {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: ListTile(
         leading: const CircleAvatar(backgroundColor: Colors.white),
-        title: Container(width: double.infinity, height: 16, color: Colors.white),
+        title: Container(
+          width: double.infinity,
+          height: 16,
+          color: Colors.white,
+        ),
         subtitle: Container(width: 150, height: 14, color: Colors.white),
       ),
     ),
@@ -112,17 +116,30 @@ class ServiceRequestsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('requests').orderBy('timestamp', descending: true).snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('requests')
+          .orderBy('timestamp', descending: true)
+          .snapshots(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Center(child: Text('Unable to load requests.'));
+        }
         if (!snapshot.hasData) {
           return ListView.builder(
             itemCount: 5,
             itemBuilder: (context, index) => _buildShimmerListItem(),
           );
         }
-        final requests = snapshot.data!.docs.map((doc) => ServiceRequestModel.fromJson(doc.data() as Map<String, dynamic>)).toList();
-        
-        if (requests.isEmpty) return const Center(child: Text('No service requests found.'));
+        final requests = snapshot.data!.docs
+            .map(
+              (doc) => ServiceRequestModel.fromJson(
+                doc.data() as Map<String, dynamic>,
+              ),
+            )
+            .toList();
+
+        if (requests.isEmpty)
+          return const Center(child: Text('No service requests found.'));
 
         return ListView.builder(
           padding: const EdgeInsets.only(bottom: 100),
@@ -149,11 +166,26 @@ class RequestAdminCard extends StatelessWidget {
       child: ExpansionTile(
         leading: CircleAvatar(
           backgroundColor: _getStatusColor(request.status).withOpacity(0.1),
-          child: Icon(_getServiceIcon(request.serviceType), color: _getStatusColor(request.status)),
+          child: Icon(
+            _getServiceIcon(request.serviceType),
+            color: _getStatusColor(request.status),
+          ),
         ),
-        title: Text(request.serviceType, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text('Status: ${request.status.name.toUpperCase()}', style: TextStyle(color: _getStatusColor(request.status), fontSize: 12)),
-        trailing: Text(DateFormat('MMM dd').format(request.timestamp), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        title: Text(
+          request.serviceType,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(
+          'Status: ${request.status.name.toUpperCase()}',
+          style: TextStyle(
+            color: _getStatusColor(request.status),
+            fontSize: 12,
+          ),
+        ),
+        trailing: Text(
+          DateFormat('MMM dd').format(request.timestamp),
+          style: const TextStyle(color: Colors.grey, fontSize: 12),
+        ),
         children: [
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -166,24 +198,75 @@ class RequestAdminCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 _buildUserDetailRow(context, 'Provider', request.providerId),
                 const SizedBox(height: 12),
-                const Text('Request Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                const Text(
+                  'Request Details',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
                 const SizedBox(height: 8),
-                _buildInfoRow(Icons.description, 'Task', request.description ?? 'No description provided'),
-                _buildInfoRow(Icons.access_time, 'Time', DateFormat('MMM dd, yyyy • hh:mm a').format(request.timestamp)),
+                _buildInfoRow(
+                  Icons.description,
+                  'Task',
+                  request.description ?? 'No description provided',
+                ),
+                _buildInfoRow(
+                  Icons.access_time,
+                  'Time',
+                  DateFormat(
+                    'MMM dd, yyyy • hh:mm a',
+                  ).format(request.timestamp),
+                ),
                 if (request.agreedPrice != null)
-                  _buildInfoRow(Icons.payments, 'Price', '\$${request.agreedPrice!.toStringAsFixed(2)}'),
-                _buildInfoRow(Icons.payment, 'Payment', request.paymentStatus.toUpperCase()),
+                  _buildInfoRow(
+                    Icons.payments,
+                    'Price',
+                    '\$${request.agreedPrice!.toStringAsFixed(2)}',
+                  ),
+                _buildInfoRow(
+                  Icons.payment,
+                  'Payment',
+                  request.paymentStatus.toUpperCase(),
+                ),
                 const SizedBox(height: 16),
-                if (request.status == RequestStatus.pending || request.status == RequestStatus.accepted)
+                if (request.status == RequestStatus.pending ||
+                    request.status == RequestStatus.accepted)
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        FirebaseFirestore.instance.collection('requests').doc(request.requestId).update({'status': 'cancelled'});
+                      onPressed: () async {
+                        try {
+                          await FirebaseFirestore.instance
+                              .collection('requests')
+                              .doc(request.requestId)
+                              .update({'status': 'cancelled'});
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Request cancelled.'),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          debugPrint(
+                            'AdminDashboardScreen: failed to cancel request ${request.requestId}: $e',
+                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Unable to cancel request. ${e.toString()}',
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
                       },
                       icon: const Icon(Icons.cancel, size: 18),
                       label: const Text('Cancel Request'),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                      ),
                     ),
                   ),
                 if (request.status == RequestStatus.cancelled)
@@ -191,9 +274,18 @@ class RequestAdminCard extends StatelessWidget {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () => _showDeleteConfirmation(context),
-                      icon: const Icon(Icons.delete_forever, size: 18, color: Colors.red),
-                      label: const Text('Delete Permanently', style: TextStyle(color: Colors.red)),
-                      style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
+                      icon: const Icon(
+                        Icons.delete_forever,
+                        size: 18,
+                        color: Colors.red,
+                      ),
+                      label: const Text(
+                        'Delete Permanently',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.red),
+                      ),
                     ),
                   ),
               ],
@@ -209,15 +301,43 @@ class RequestAdminCard extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Delete Request?"),
-        content: const Text("This action cannot be undone. Are you sure you want to permanently delete this cancelled request from the database?"),
+        content: const Text(
+          "This action cannot be undone. Are you sure you want to permanently delete this cancelled request from the database?",
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Keep it")),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Keep it"),
+          ),
           ElevatedButton(
             onPressed: () async {
-              await FirebaseFirestore.instance.collection('requests').doc(request.requestId).delete();
-              if (context.mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Request deleted successfully.")));
+              try {
+                await FirebaseFirestore.instance
+                    .collection('requests')
+                    .doc(request.requestId)
+                    .delete();
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Request deleted successfully."),
+                    ),
+                  );
+                }
+              } catch (e) {
+                debugPrint(
+                  'AdminDashboardScreen: failed to delete request ${request.requestId}: $e',
+                );
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Unable to delete request. ${e.toString()}',
+                      ),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -228,20 +348,39 @@ class RequestAdminCard extends StatelessWidget {
     );
   }
 
-  Widget _buildUserDetailRow(BuildContext context, String label, String userId) {
+  Widget _buildUserDetailRow(
+    BuildContext context,
+    String label,
+    String userId,
+  ) {
     return FutureBuilder<DocumentSnapshot>(
       future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) return Text('$label: Unable to load user');
         if (!snapshot.hasData) return const Text('Loading...');
         if (!snapshot.data!.exists) return Text('$label: Unknown User');
-        
-        final user = UserModel.fromJson(snapshot.data!.data() as Map<String, dynamic>);
+
+        final user = UserModel.fromJson(
+          snapshot.data!.data() as Map<String, dynamic>,
+        );
         return Row(
           children: [
             Text('$label: ', style: const TextStyle(color: Colors.grey)),
-            Expanded(child: Text(user.name, style: const TextStyle(fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+            Expanded(
+              child: Text(
+                user.name,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
             const SizedBox(width: 8),
-            Flexible(child: Text(user.email, style: const TextStyle(fontSize: 11, color: Colors.blue), overflow: TextOverflow.ellipsis)),
+            Flexible(
+              child: Text(
+                user.email,
+                style: const TextStyle(fontSize: 11, color: Colors.blue),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         );
       },
@@ -256,7 +395,10 @@ class RequestAdminCard extends StatelessWidget {
         children: [
           Icon(icon, size: 16, color: Colors.grey),
           const SizedBox(width: 8),
-          Text('$label: ', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+          Text(
+            '$label: ',
+            style: const TextStyle(color: Colors.grey, fontSize: 13),
+          ),
           Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
         ],
       ),
@@ -265,12 +407,17 @@ class RequestAdminCard extends StatelessWidget {
 
   Color _getStatusColor(RequestStatus status) {
     switch (status) {
-      case RequestStatus.accepted: return Colors.green;
-      case RequestStatus.inProgress: return Colors.blue;
-      case RequestStatus.completed: return Colors.orange;
+      case RequestStatus.accepted:
+        return Colors.green;
+      case RequestStatus.inProgress:
+        return Colors.blue;
+      case RequestStatus.completed:
+        return Colors.orange;
       case RequestStatus.declined:
-      case RequestStatus.cancelled: return Colors.red;
-      default: return Colors.grey;
+      case RequestStatus.cancelled:
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 
@@ -297,15 +444,23 @@ class PendingProvidersList extends StatelessWidget {
           .where('isVerified', isEqualTo: false)
           .snapshots(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Center(child: Text('Unable to load pending providers.'));
+        }
         if (!snapshot.hasData) {
           return ListView.builder(
-             itemCount: 5,
-             itemBuilder: (context, index) => _buildShimmerListItem(),
+            itemCount: 5,
+            itemBuilder: (context, index) => _buildShimmerListItem(),
           );
         }
-        final providers = snapshot.data!.docs.map((doc) => UserModel.fromJson(doc.data() as Map<String, dynamic>)).toList();
+        final providers = snapshot.data!.docs
+            .map(
+              (doc) => UserModel.fromJson(doc.data() as Map<String, dynamic>),
+            )
+            .toList();
 
-        if (providers.isEmpty) return const Center(child: Text('No pending provider requests'));
+        if (providers.isEmpty)
+          return const Center(child: Text('No pending provider requests'));
 
         return ListView.builder(
           padding: const EdgeInsets.only(bottom: 100),
@@ -317,7 +472,9 @@ class PendingProvidersList extends StatelessWidget {
               child: ListTile(
                 leading: const CircleAvatar(child: Icon(Icons.person)),
                 title: Text(provider.name),
-                subtitle: Text('${provider.serviceType} | ${provider.city}, ${provider.state}'),
+                subtitle: Text(
+                  '${provider.serviceType} | ${provider.city}, ${provider.state}',
+                ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -327,8 +484,34 @@ class PendingProvidersList extends StatelessWidget {
                     ),
                     IconButton(
                       icon: const Icon(Icons.cancel, color: Colors.red),
-                      onPressed: () {
-                        FirebaseFirestore.instance.collection('users').doc(provider.uid).delete();
+                      onPressed: () async {
+                        try {
+                          await FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(provider.uid)
+                              .delete();
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Provider request deleted.'),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          debugPrint(
+                            'AdminDashboardScreen: failed to delete pending provider ${provider.uid}: $e',
+                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Unable to delete pending provider. ${e.toString()}',
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
                       },
                     ),
                   ],
@@ -371,16 +554,19 @@ class PendingProvidersList extends StatelessWidget {
               final password = passwordController.text.trim();
               if (password.length < 6) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Password must be at least 6 characters")),
+                  const SnackBar(
+                    content: Text("Password must be at least 6 characters"),
+                  ),
                 );
                 return;
               }
 
               try {
-                final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-                  email: provider.email,
-                  password: password,
-                );
+                final userCredential = await FirebaseAuth.instance
+                    .createUserWithEmailAndPassword(
+                      email: provider.email,
+                      password: password,
+                    );
 
                 final newUid = userCredential.user!.uid;
 
@@ -389,22 +575,33 @@ class PendingProvidersList extends StatelessWidget {
                 providerData['isVerified'] = true;
                 providerData['isActive'] = true;
 
-                await FirebaseFirestore.instance.collection('users').doc(newUid).set(providerData);
-                await FirebaseFirestore.instance.collection('users').doc(provider.uid).delete();
-                
-                // Notify provider of approval (might need to wait for them to log in first to get token, 
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(newUid)
+                    .set(providerData);
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(provider.uid)
+                    .delete();
+
+                // Notify provider of approval (might need to wait for them to log in first to get token,
                 // but we can send it anyway if they registered with one)
                 await NotificationService().sendNotification(
                   recipientId: newUid,
                   title: 'Account Approved!',
-                  body: 'Welcome to Quick Hub! Your provider account has been approved. Please login with your temporary password.',
+                  body:
+                      'Welcome to Quick Hub! Your provider account has been approved. Please login with your temporary password.',
                   data: {'type': 'approval'},
                 );
 
                 if (context.mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("${provider.name} approved! They can now login.")),
+                    SnackBar(
+                      content: Text(
+                        "${provider.name} approved! They can now login.",
+                      ),
+                    ),
                   );
                 }
               } catch (e) {
@@ -442,10 +639,7 @@ class UsersAdminTab extends StatelessWidget {
           ),
           Expanded(
             child: TabBarView(
-              children: [
-                const ActiveProvidersList(),
-                _buildConsumersList(),
-              ],
+              children: [const ActiveProvidersList(), _buildConsumersList()],
             ),
           ),
         ],
@@ -460,15 +654,23 @@ class UsersAdminTab extends StatelessWidget {
           .where('role', isEqualTo: 'consumer')
           .snapshots(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Center(child: Text('Unable to load consumers.'));
+        }
         if (!snapshot.hasData) {
           return ListView.builder(
             itemCount: 5,
             itemBuilder: (context, index) => _buildShimmerListItem(),
           );
         }
-        final consumers = snapshot.data!.docs.map((doc) => UserModel.fromJson(doc.data() as Map<String, dynamic>)).toList();
+        final consumers = snapshot.data!.docs
+            .map(
+              (doc) => UserModel.fromJson(doc.data() as Map<String, dynamic>),
+            )
+            .toList();
 
-        if (consumers.isEmpty) return const Center(child: Text('No consumers enrolled'));
+        if (consumers.isEmpty)
+          return const Center(child: Text('No consumers enrolled'));
 
         return ListView.builder(
           padding: const EdgeInsets.only(bottom: 100),
@@ -483,8 +685,27 @@ class UsersAdminTab extends StatelessWidget {
                 subtitle: Text(consumer.email),
                 trailing: Switch(
                   value: consumer.isActive,
-                  onChanged: (val) {
-                    FirebaseFirestore.instance.collection('users').doc(consumer.uid).update({'isActive': val});
+                  onChanged: (val) async {
+                    try {
+                      await FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(consumer.uid)
+                          .update({'isActive': val});
+                    } catch (e) {
+                      debugPrint(
+                        'AdminDashboardScreen: failed to update consumer ${consumer.uid} active status: $e',
+                      );
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Unable to update consumer status. ${e.toString()}',
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
                   },
                 ),
               ),
@@ -501,18 +722,26 @@ class ActiveProvidersList extends StatelessWidget {
 
   void _showProviderDetails(BuildContext context, UserModel provider) {
     final nameController = TextEditingController(text: provider.name);
-    final ageController = TextEditingController(text: provider.age?.toString() ?? '');
+    final ageController = TextEditingController(
+      text: provider.age?.toString() ?? '',
+    );
     final bioController = TextEditingController(text: provider.bio ?? '');
-    final aadhaarController = TextEditingController(text: provider.aadhaarNumber ?? '');
+    final aadhaarController = TextEditingController(
+      text: provider.aadhaarNumber ?? '',
+    );
     final panController = TextEditingController(text: provider.panNumber ?? '');
-    final hourlyRateController = TextEditingController(text: provider.hourlyRate?.toString() ?? '');
+    final hourlyRateController = TextEditingController(
+      text: provider.hourlyRate?.toString() ?? '',
+    );
     String? gender = provider.gender;
     String? preferredLanguage = provider.preferredLanguage;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+      ),
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) => DraggableScrollableSheet(
           initialChildSize: 0.8,
@@ -528,23 +757,42 @@ class ActiveProvidersList extends StatelessWidget {
                   child: CircleAvatar(
                     radius: 50,
                     backgroundColor: Colors.blue.withOpacity(0.1),
-                    child: const Icon(Icons.engineering, size: 50, color: Colors.blue),
+                    child: const Icon(
+                      Icons.engineering,
+                      size: 50,
+                      color: Colors.blue,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
                 Center(
-                  child: Text(provider.name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  child: Text(
+                    provider.name,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
                 Center(
-                  child: Text(provider.serviceType ?? 'General Provider', style: const TextStyle(color: Colors.grey)),
+                  child: Text(
+                    provider.serviceType ?? 'General Provider',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
                 ),
                 const SizedBox(height: 24),
-                const Text('Personal Information', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text(
+                  'Personal Information',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 const Divider(),
                 const SizedBox(height: 10),
                 TextField(
                   controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Full Name', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    labelText: 'Full Name',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -553,15 +801,27 @@ class ActiveProvidersList extends StatelessWidget {
                       child: TextField(
                         controller: ageController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Age', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(
+                          labelText: 'Age',
+                          border: OutlineInputBorder(),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: ['Male', 'Female', 'Other'].contains(gender) ? gender : null,
-                        decoration: const InputDecoration(labelText: 'Gender', border: OutlineInputBorder()),
-                        items: ['Male', 'Female', 'Other'].map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                        value: ['Male', 'Female', 'Other'].contains(gender)
+                            ? gender
+                            : null,
+                        decoration: const InputDecoration(
+                          labelText: 'Gender',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: ['Male', 'Female', 'Other']
+                            .map(
+                              (g) => DropdownMenuItem(value: g, child: Text(g)),
+                            )
+                            .toList(),
                         onChanged: (val) => setModalState(() => gender = val),
                       ),
                     ),
@@ -570,34 +830,63 @@ class ActiveProvidersList extends StatelessWidget {
                 const SizedBox(height: 16),
                 TextField(
                   controller: aadhaarController,
-                  decoration: const InputDecoration(labelText: 'Aadhaar Number', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    labelText: 'Aadhaar Number',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: panController,
-                  decoration: const InputDecoration(labelText: 'PAN Number', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    labelText: 'PAN Number',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: ['English', 'Hindi', 'Punjabi', 'Other'].contains(preferredLanguage) ? preferredLanguage : null,
-                  decoration: const InputDecoration(labelText: 'Language', border: OutlineInputBorder()),
-                  items: ['English', 'Hindi', 'Punjabi', 'Other'].map((l) => DropdownMenuItem(value: l, child: Text(l))).toList(),
-                  onChanged: (val) => setModalState(() => preferredLanguage = val),
+                  value:
+                      [
+                        'English',
+                        'Hindi',
+                        'Punjabi',
+                        'Other',
+                      ].contains(preferredLanguage)
+                      ? preferredLanguage
+                      : null,
+                  decoration: const InputDecoration(
+                    labelText: 'Language',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: ['English', 'Hindi', 'Punjabi', 'Other']
+                      .map((l) => DropdownMenuItem(value: l, child: Text(l)))
+                      .toList(),
+                  onChanged: (val) =>
+                      setModalState(() => preferredLanguage = val),
                 ),
                 const SizedBox(height: 24),
-                const Text('Professional Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text(
+                  'Professional Details',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 const Divider(),
                 const SizedBox(height: 10),
                 TextField(
                   controller: hourlyRateController,
                   keyboardType: TextInputType.number,
-                  decoration: InputDecoration(labelText:"Hourly Rate: - ${provider.hourlyRate}", border: const OutlineInputBorder()),
+                  decoration: InputDecoration(
+                    labelText: "Hourly Rate: - ${provider.hourlyRate}",
+                    border: const OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: bioController,
                   maxLines: 3,
-                  decoration: const InputDecoration(labelText: 'Bio', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    labelText: 'Bio',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 32),
                 SizedBox(
@@ -630,16 +919,36 @@ class ActiveProvidersList extends StatelessWidget {
                         state: provider.state,
                       );
 
-                      await FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(provider.uid)
-                          .update(updatedUser.toJson());
+                      try {
+                        await FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(provider.uid)
+                            .update(updatedUser.toJson());
 
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Provider details updated successfully!')),
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Provider details updated successfully!',
+                              ),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        debugPrint(
+                          'AdminDashboardScreen: failed to update provider ${provider.uid}: $e',
                         );
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Unable to update provider details. ${e.toString()}',
+                              ),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
                       }
                     },
                     child: const Text('Update Provider Details'),
@@ -663,15 +972,23 @@ class ActiveProvidersList extends StatelessWidget {
           .where('isVerified', isEqualTo: true)
           .snapshots(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Center(child: Text('Unable to load active providers.'));
+        }
         if (!snapshot.hasData) {
           return ListView.builder(
             itemCount: 5,
             itemBuilder: (context, index) => _buildShimmerListItem(),
           );
         }
-        final providers = snapshot.data!.docs.map((doc) => UserModel.fromJson(doc.data() as Map<String, dynamic>)).toList();
+        final providers = snapshot.data!.docs
+            .map(
+              (doc) => UserModel.fromJson(doc.data() as Map<String, dynamic>),
+            )
+            .toList();
 
-        if (providers.isEmpty) return const Center(child: Text('No active providers'));
+        if (providers.isEmpty)
+          return const Center(child: Text('No active providers'));
 
         return ListView.builder(
           padding: const EdgeInsets.only(bottom: 100),
@@ -686,11 +1003,11 @@ class ActiveProvidersList extends StatelessWidget {
                   children: [
                     const CircleAvatar(child: Icon(Icons.engineering)),
                     if (provider.isPremium)
-                       const Positioned(
-                         bottom: 0,
-                         right: 0,
-                         child: Icon(Icons.star, color: Colors.amber, size: 14)
-                       )
+                      const Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Icon(Icons.star, color: Colors.amber, size: 14),
+                      ),
                   ],
                 ),
                 title: Text(provider.name),
@@ -701,23 +1018,68 @@ class ActiveProvidersList extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       IconButton(
-                        tooltip: provider.isPremium ? "Remove Premium" : "Make Premium",
-                        icon: Icon(Icons.workspace_premium, color: provider.isPremium ? Colors.amber : Colors.grey),
-                        onPressed: () {
-                           FirebaseFirestore.instance.collection('users').doc(provider.uid).update({'isPremium': !provider.isPremium});
-                        }
+                        tooltip: provider.isPremium
+                            ? "Remove Premium"
+                            : "Make Premium",
+                        icon: Icon(
+                          Icons.workspace_premium,
+                          color: provider.isPremium
+                              ? Colors.amber
+                              : Colors.grey,
+                        ),
+                        onPressed: () async {
+                          try {
+                            await FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(provider.uid)
+                                .update({'isPremium': !provider.isPremium});
+                          } catch (e) {
+                            debugPrint(
+                              'AdminDashboardScreen: failed to toggle premium for ${provider.uid}: $e',
+                            );
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Unable to update premium status. ${e.toString()}',
+                                  ),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
                       ),
                       Expanded(
                         child: Switch(
                           value: provider.isActive,
-                          onChanged: (val) {
-                            FirebaseFirestore.instance.collection('users').doc(provider.uid).update({'isActive': val});
+                          onChanged: (val) async {
+                            try {
+                              await FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(provider.uid)
+                                  .update({'isActive': val});
+                            } catch (e) {
+                              debugPrint(
+                                'AdminDashboardScreen: failed to update active status for ${provider.uid}: $e',
+                              );
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Unable to update provider availability. ${e.toString()}',
+                                    ),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            }
                           },
                         ),
                       ),
                     ],
                   ),
-                )
+                ),
               ),
             );
           },
@@ -735,6 +1097,9 @@ class PaymentsAdminTab extends StatelessWidget {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('transactions').snapshots(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Center(child: Text('Unable to load payments data.'));
+        }
         if (!snapshot.hasData) {
           return Center(
             child: Shimmer.fromColors(
@@ -744,12 +1109,15 @@ class PaymentsAdminTab extends StatelessWidget {
                 margin: const EdgeInsets.all(20),
                 height: 400,
                 width: double.infinity,
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
             ),
           );
         }
-        
+
         double totalRevenue = 0;
         double totalCommission = 0;
         double payoutsDue = 0;
@@ -758,7 +1126,7 @@ class PaymentsAdminTab extends StatelessWidget {
         for (var doc in snapshot.data!.docs) {
           final data = doc.data() as Map<String, dynamic>;
           final txn = TransactionModel.fromJson(data);
-          
+
           if (txn.status == PaymentStatus.completed) {
             totalRevenue += txn.totalAmount;
             totalCommission += txn.commissionAmount;
@@ -773,47 +1141,82 @@ class PaymentsAdminTab extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
-             const Text("Financial Analytics", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-             const SizedBox(height: 20),
-             SizedBox(
-               height: 200,
-               child: Stack(
-                 alignment: Alignment.center,
-                 children: [
-                   PieChart(
-                     PieChartData(
-                       sectionsSpace: 2,
-                       centerSpaceRadius: 60,
-                       sections: [
-                         PieChartSectionData(
-                           value: totalCommission,
-                           color: Colors.green,
-                           title: '10%\nCommission',
-                           radius: 40,
-                           titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
-                         ),
-                         PieChartSectionData(
-                           value: totalPayoutCompleted + payoutsDue,
-                           color: Colors.blue,
-                           title: '90%\nProviders',
-                           radius: 40,
-                           titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
-                         ),
-                       ],
-                     )
-                   ),
-                   const Text("Revenue\nSplit", textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                 ],
-               ),
-             ),
-             const SizedBox(height: 30),
-            _buildStatCard('Total Platform Revenue', '\$${totalRevenue.toStringAsFixed(2)}', Colors.blue, 'Gross volume from consumers'),
+            const Text(
+              "Financial Analytics",
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 200,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  PieChart(
+                    PieChartData(
+                      sectionsSpace: 2,
+                      centerSpaceRadius: 60,
+                      sections: [
+                        PieChartSectionData(
+                          value: totalCommission,
+                          color: Colors.green,
+                          title: '10%\nCommission',
+                          radius: 40,
+                          titleStyle: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        PieChartSectionData(
+                          value: totalPayoutCompleted + payoutsDue,
+                          color: Colors.blue,
+                          title: '90%\nProviders',
+                          radius: 40,
+                          titleStyle: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Text(
+                    "Revenue\nSplit",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 30),
+            _buildStatCard(
+              'Total Platform Revenue',
+              '\$${totalRevenue.toStringAsFixed(2)}',
+              Colors.blue,
+              'Gross volume from consumers',
+            ),
             const SizedBox(height: 12),
-            _buildStatCard('Retained Commission', '\$${totalCommission.toStringAsFixed(2)}', Colors.green, 'Platform earnings (10%)'),
+            _buildStatCard(
+              'Retained Commission',
+              '\$${totalCommission.toStringAsFixed(2)}',
+              Colors.green,
+              'Platform earnings (10%)',
+            ),
             const SizedBox(height: 12),
-            _buildStatCard('Provider Payouts Due', '\$${payoutsDue.toStringAsFixed(2)}', Colors.orange, 'Funds pending transfer to providers'),
+            _buildStatCard(
+              'Provider Payouts Due',
+              '\$${payoutsDue.toStringAsFixed(2)}',
+              Colors.orange,
+              'Funds pending transfer to providers',
+            ),
             const SizedBox(height: 12),
-            _buildStatCard('Payouts Complete', '\$${totalPayoutCompleted.toStringAsFixed(2)}', Colors.purple, 'Total funds disbursed'),
+            _buildStatCard(
+              'Payouts Complete',
+              '\$${totalPayoutCompleted.toStringAsFixed(2)}',
+              Colors.purple,
+              'Total funds disbursed',
+            ),
             const SizedBox(height: 100),
           ],
         );
@@ -821,7 +1224,12 @@ class PaymentsAdminTab extends StatelessWidget {
     );
   }
 
-  Widget _buildStatCard(String title, String value, Color color, String subtitle) {
+  Widget _buildStatCard(
+    String title,
+    String value,
+    Color color,
+    String subtitle,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -835,15 +1243,35 @@ class PaymentsAdminTab extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(child: Text(title, style: TextStyle(fontSize: 16, color: color, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
               const SizedBox(width: 8),
               Icon(Icons.monetization_on, color: color.withOpacity(0.5)),
             ],
           ),
           const SizedBox(height: 8),
-          Text(value, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: color)),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          Text(
+            subtitle,
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
         ],
       ),
     );
@@ -858,6 +1286,9 @@ class StatsAdminTab extends StatelessWidget {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('requests').snapshots(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Center(child: Text('Unable to load stats data.'));
+        }
         if (!snapshot.hasData) {
           return Center(
             child: Shimmer.fromColors(
@@ -867,12 +1298,15 @@ class StatsAdminTab extends StatelessWidget {
                 margin: const EdgeInsets.all(20),
                 height: 400,
                 width: double.infinity,
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
             ),
           );
         }
-        
+
         int total = 0;
         int completed = 0;
         int pending = 0;
@@ -882,15 +1316,21 @@ class StatsAdminTab extends StatelessWidget {
           final data = doc.data() as Map<String, dynamic>;
           total++;
           final status = data['status'];
-          if (status == 'completed') completed++;
-          else if (status == 'cancelled' || status == 'declined') cancelled++;
-          else pending++;
+          if (status == 'completed')
+            completed++;
+          else if (status == 'cancelled' || status == 'declined')
+            cancelled++;
+          else
+            pending++;
         }
 
         return ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
-            const Text("App Performance Analytics", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            const Text(
+              "App Performance Analytics",
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 20),
             if (total > 0)
               SizedBox(
@@ -907,36 +1347,91 @@ class StatsAdminTab extends StatelessWidget {
                           showTitles: true,
                           getTitlesWidget: (val, meta) {
                             switch (val.toInt()) {
-                              case 0: return const Text('Complete');
-                              case 1: return const Text('Pending');
-                              case 2: return const Text('Cancel');
-                              default: return const Text('');
+                              case 0:
+                                return const Text('Complete');
+                              case 1:
+                                return const Text('Pending');
+                              case 2:
+                                return const Text('Cancel');
+                              default:
+                                return const Text('');
                             }
                           },
                         ),
                       ),
-                      leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      rightTitles: AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      topTitles: AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
                     ),
                     gridData: FlGridData(show: false),
                     borderData: FlBorderData(show: false),
                     barGroups: [
-                      BarChartGroupData(x: 0, barRods: [BarChartRodData(toY: completed.toDouble(), color: Colors.green, width: 30, borderRadius: BorderRadius.circular(4))]),
-                      BarChartGroupData(x: 1, barRods: [BarChartRodData(toY: pending.toDouble(), color: Colors.orange, width: 30, borderRadius: BorderRadius.circular(4))]),
-                      BarChartGroupData(x: 2, barRods: [BarChartRodData(toY: cancelled.toDouble(), color: Colors.red, width: 30, borderRadius: BorderRadius.circular(4))]),
+                      BarChartGroupData(
+                        x: 0,
+                        barRods: [
+                          BarChartRodData(
+                            toY: completed.toDouble(),
+                            color: Colors.green,
+                            width: 30,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ],
+                      ),
+                      BarChartGroupData(
+                        x: 1,
+                        barRods: [
+                          BarChartRodData(
+                            toY: pending.toDouble(),
+                            color: Colors.orange,
+                            width: 30,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ],
+                      ),
+                      BarChartGroupData(
+                        x: 2,
+                        barRods: [
+                          BarChartRodData(
+                            toY: cancelled.toDouble(),
+                            color: Colors.red,
+                            width: 30,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ],
+                      ),
                     ],
-                  )
+                  ),
                 ),
               ),
             const SizedBox(height: 30),
             _buildMetricCard("Total Requests", "$total", Icons.layers),
             const SizedBox(height: 10),
-            _buildMetricCard("Completed Services", "$completed", Icons.check_circle_outline, color: Colors.green),
+            _buildMetricCard(
+              "Completed Services",
+              "$completed",
+              Icons.check_circle_outline,
+              color: Colors.green,
+            ),
             const SizedBox(height: 10),
-            _buildMetricCard("Pending/In-Progress", "$pending", Icons.hourglass_empty, color: Colors.orange),
+            _buildMetricCard(
+              "Pending/In-Progress",
+              "$pending",
+              Icons.hourglass_empty,
+              color: Colors.orange,
+            ),
             const SizedBox(height: 10),
-            _buildMetricCard("Cancelled/Declined", "$cancelled", Icons.cancel_outlined, color: Colors.red),
+            _buildMetricCard(
+              "Cancelled/Declined",
+              "$cancelled",
+              Icons.cancel_outlined,
+              color: Colors.red,
+            ),
             const SizedBox(height: 100),
           ],
         );
@@ -944,7 +1439,12 @@ class StatsAdminTab extends StatelessWidget {
     );
   }
 
-  Widget _buildMetricCard(String title, String value, IconData icon, {Color color = Colors.blue}) {
+  Widget _buildMetricCard(
+    String title,
+    String value,
+    IconData icon, {
+    Color color = Colors.blue,
+  }) {
     return Card(
       elevation: 2,
       child: ListTile(
@@ -953,7 +1453,14 @@ class StatsAdminTab extends StatelessWidget {
           child: Icon(icon, color: color),
         ),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        trailing: Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+        trailing: Text(
+          value,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
       ),
     );
   }
@@ -965,18 +1472,30 @@ class ComplaintsAdminTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('complaints').orderBy('timestamp', descending: true).snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('complaints')
+          .orderBy('timestamp', descending: true)
+          .snapshots(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Center(child: Text('Unable to load complaints.'));
+        }
         if (!snapshot.hasData) {
           return ListView.builder(
             itemCount: 5,
             itemBuilder: (context, index) => _buildShimmerListItem(),
           );
         }
-        
-        final complaints = snapshot.data!.docs.map((doc) => ComplaintModel.fromJson(doc.data() as Map<String, dynamic>)).toList();
 
-        if (complaints.isEmpty) return const Center(child: Text('No complaints submitted.'));
+        final complaints = snapshot.data!.docs
+            .map(
+              (doc) =>
+                  ComplaintModel.fromJson(doc.data() as Map<String, dynamic>),
+            )
+            .toList();
+
+        if (complaints.isEmpty)
+          return const Center(child: Text('No complaints submitted.'));
 
         return ListView.builder(
           padding: const EdgeInsets.only(bottom: 100),
@@ -995,9 +1514,18 @@ class ComplaintsAdminTab extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Reported By: ${complaint.reporterId.substring(0, 5)}...', style: const TextStyle(fontWeight: FontWeight.bold)),
+                        Text(
+                          'Reported By: ${complaint.reporterId.substring(0, 5)}...',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
                         Chip(
-                          label: Text(complaint.status.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 10)),
+                          label: Text(
+                            complaint.status.toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                            ),
+                          ),
                           backgroundColor: isOpen ? Colors.red : Colors.green,
                         ),
                       ],
@@ -1008,14 +1536,51 @@ class ComplaintsAdminTab extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(DateFormat('MMM dd, hh:mm a').format(complaint.timestamp), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                        Text(
+                          DateFormat(
+                            'MMM dd, hh:mm a',
+                          ).format(complaint.timestamp),
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
                         if (isOpen)
                           TextButton(
-                            onPressed: () {
-                              FirebaseFirestore.instance.collection('complaints').doc(complaint.complaintId).update({'status': 'resolved'});
+                            onPressed: () async {
+                              try {
+                                await FirebaseFirestore.instance
+                                    .collection('complaints')
+                                    .doc(complaint.complaintId)
+                                    .update({'status': 'resolved'});
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Complaint marked resolved.',
+                                      ),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                debugPrint(
+                                  'AdminDashboardScreen: failed to resolve complaint ${complaint.complaintId}: $e',
+                                );
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Unable to mark resolved. ${e.toString()}',
+                                      ),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
                             },
                             child: const Text('Mark Resolved'),
-                          )
+                          ),
                       ],
                     ),
                   ],
