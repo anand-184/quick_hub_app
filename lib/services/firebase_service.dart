@@ -73,7 +73,14 @@ class FirebaseService {
     try {
       final doc = await _firestore.collection('users').doc(uid).get();
       if (doc.exists) {
-        return UserModel.fromJson(doc.data()!);
+        final data = doc.data()!;
+        final profileData = <String, dynamic>{
+          ...data,
+          'uid': (data['uid'] as String?)?.isNotEmpty == true
+              ? data['uid']
+              : doc.id,
+        };
+        return UserModel.fromJson(profileData);
       }
       return null;
     } on FirebaseException catch (e) {
