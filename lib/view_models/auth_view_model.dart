@@ -47,9 +47,11 @@ class AuthViewModel extends ChangeNotifier {
         _setLoading(true);
         final userProfile = await _firebaseService.getUserProfile(user.uid);
         _currentUser = userProfile;
-        
+
         if (userProfile == null) {
-          debugPrint("AuthViewModel: Profile not found in Firestore for UID: ${user.uid}");
+          debugPrint(
+            "AuthViewModel: Profile not found in Firestore for UID: ${user.uid}",
+          );
         }
 
         NotificationService().updateToken(user.uid);
@@ -152,12 +154,14 @@ class AuthViewModel extends ChangeNotifier {
         final userProfile = await _firebaseService.getUserProfile(
           credential.user!.uid,
         );
-        
+
         if (userProfile == null) {
-          _setError("Account found, but profile is missing. Please contact support.");
+          _setError(
+            "Account found, but profile is missing. Please contact support.",
+          );
           _setLoading(false);
           // Optional: log out if profile is missing to allow retry
-          // await _firebaseService.logout(); 
+          // await _firebaseService.logout();
           return false;
         }
 
@@ -195,43 +199,29 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
-
   Future<bool> sendPasswordResetEmail(String email) async {
     _setLoading(true);
     _setError(null);
     try {
-      // Security check: Only send if email exists in our DB
-      final exists = await _firebaseService.doesEmailExist(email);
-      if (!exists) {
-        _setError(
-          "No account found with this email.",
-          errorCode: 'user-not-found',
-        );
-        _setLoading(false);
-        return false;
-      }
-
       await _firebaseService.sendPasswordResetEmail(email);
-      _setLoading(false);
       return true;
     } on FirebaseAuthException catch (e) {
       _setError(_mapFirebaseAuthError(e), errorCode: e.code);
-      _setLoading(false);
       return false;
     } on FirebaseException catch (e) {
       _setError(
-        'Unable to verify your email or send the reset link. Please try again later.',
+        'Unable to send the reset link. Please try again later.',
         errorCode: e.code,
       );
-      _setLoading(false);
       return false;
     } catch (e) {
       _setError(
         "An unexpected error occurred. Please try again.",
         errorCode: 'unknown',
       );
-      _setLoading(false);
       return false;
+    } finally {
+      _setLoading(false);
     }
   }
 

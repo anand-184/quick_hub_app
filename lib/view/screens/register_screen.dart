@@ -184,44 +184,42 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     setState(() => isSending = true);
+    try {
+      final authVM = context.read<AuthViewModel>();
+      final exists = await authVM.checkEmailExists(email);
 
-    final authVM = context.read<AuthViewModel>();
-    final exists = await authVM.checkEmailExists(email);
-
-    if (exists) {
-      setState(() => isSending = false);
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AuthErrorDialog(
-            title: 'Email Already Registered',
-            message:
-                'This email is already registered. Please use a different email or try logging in.',
-            icon: Icons.email,
-            buttonText: 'Go to Login',
-            onConfirm: () {
-              Navigator.pop(context);
-              widget.onLoginTap();
-            },
-          ),
-        );
+      if (exists) {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AuthErrorDialog(
+              title: 'Email Already Registered',
+              message:
+                  'This email is already registered. Please use a different email or try logging in.',
+              icon: Icons.email,
+              buttonText: 'Go to Login',
+              onConfirm: () {
+                Navigator.pop(context);
+                widget.onLoginTap();
+              },
+            ),
+          );
+        }
+        return;
       }
-      return;
-    }
 
-    _generatedOtp = (Random().nextInt(900000) + 100000).toString();
+      _generatedOtp = (Random().nextInt(900000) + 100000).toString();
 
-    final success = await _sendEmailViaEmailJS(
-      templateParams: {
-        'email': _emailController.text,
-        'otp': _generatedOtp,
-        'time': DateTime.now().toLocal().toString().split('.')[0],
-      },
-    );
+      final success = await _sendEmailViaEmailJS(
+        templateParams: {
+          'email': _emailController.text,
+          'otp': _generatedOtp,
+          'time': DateTime.now().toLocal().toString().split('.')[0],
+        },
+      );
 
-    setState(() => isSending = false);
+      if (!mounted) return;
 
-    if (mounted) {
       if (success) {
         setState(() {
           _isOtpSent = true;
@@ -248,6 +246,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         );
       }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Unable to verify this email. Please check your connection and try again.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isSending = false);
     }
   }
 
