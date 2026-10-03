@@ -186,26 +186,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => isSending = true);
     try {
       final authVM = context.read<AuthViewModel>();
-      final exists = await authVM.checkEmailExists(email);
 
-      if (exists) {
-        if (mounted) {
-          showDialog(
-            context: context,
-            builder: (context) => AuthErrorDialog(
-              title: 'Email Already Registered',
-              message:
-                  'This email is already registered. Please use a different email or try logging in.',
-              icon: Icons.email,
-              buttonText: 'Go to Login',
-              onConfirm: () {
-                Navigator.pop(context);
-                widget.onLoginTap();
-              },
-            ),
-          );
+      try {
+        final exists = await authVM.checkEmailExists(email);
+        if (exists) {
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (context) => AuthErrorDialog(
+                title: 'Email Already Registered',
+                message:
+                    'This email is already registered. Please use a different email or try logging in.',
+                icon: Icons.email,
+                buttonText: 'Go to Login',
+                onConfirm: () {
+                  Navigator.pop(context);
+                  widget.onLoginTap();
+                },
+              ),
+            );
+          }
+          return;
         }
-        return;
+      } catch (e) {
+        debugPrint(
+          'RegisterScreen: email lookup failed; continuing with OTP: $e',
+        );
       }
 
       _generatedOtp = (Random().nextInt(900000) + 100000).toString();
@@ -309,10 +315,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       final response = await http.post(
         url,
-        headers: {
-          'origin': 'http://localhost',
-          'Content-Type': 'application/json',
-        },
+        headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'service_id': serviceId,
           'template_id': tempId,
@@ -320,8 +323,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'template_params': templateParams,
         }),
       );
+      if (response.statusCode != 200) {
+        debugPrint(
+          'RegisterScreen: EmailJS rejected OTP request '
+          '(${response.statusCode}): ${response.body}',
+        );
+      }
       return response.statusCode == 200;
     } catch (e) {
+      debugPrint('RegisterScreen: EmailJS OTP request failed: $e');
       return false;
     }
   }
